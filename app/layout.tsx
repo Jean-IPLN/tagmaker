@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
+import { RecentModulesTracker } from "@/components/recent-modules-tracker";
 
 const spaceGrotesk = Space_Grotesk({subsets:['latin'],variable:'--font-sans'});
 
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full">
         <SidebarProvider>
+          <RecentModulesTracker />
           <AppSidebar />
           <SidebarInset>
             <SiteHeader />

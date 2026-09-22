@@ -31,12 +31,13 @@ npm run dev
 ```
 
 Ouvrir `http://localhost:3000`. La barre latérale liste les modules ; la
-vue d'accueil affiche une silhouette (skeleton) tant qu'aucun module n'est
-sélectionné. Le module **EAN-13** permet de saisir un code (13 chiffres, clé
-de contrôle vérifiée) et une quantité, puis d'imprimer. Une quantité
-supérieure à 2 déclenche une modal de confirmation explicite. Le module
-affiché est mis en évidence dans la barre latérale et dans le fil d'Ariane en
-en-tête ; la navigation est persistante sur toutes les vues.
+vue d'accueil affiche une **galerie de cartes** des modules récemment
+consultés (les 4 plus récents), ou une silhouette (skeleton) de 4 cartes quand
+l'historique est vide. Le module **EAN-13** permet de saisir un code (13
+chiffres, clé de contrôle vérifiée) et une quantité, puis d'imprimer. Une
+quantité supérieure à 2 déclenche une modal de confirmation explicite. Le
+module affiché est mis en évidence dans la barre latérale et dans le fil
+d'Ariane en en-tête ; la navigation est persistante sur toutes les vues.
 
 ## Tests
 
@@ -54,6 +55,22 @@ npm run lint        # ESLint, aucun warning
 - `app/api/print/ean13/route.ts` — API `POST /api/print/ean13`
 - `components/ean13-form.tsx` / `ean13-confirm-dialog.tsx` — formulaire + modal critique
 
+## Modules récemment utilisés (accueil)
+
+- `lib/recent-modules.ts` — logique pure : enregistrement, déduplication,
+  expiration (30 jours), filtrage sur le catalogue, sérialisation
+- `lib/recent-modules-cookie.ts` — adaptateur navigateur : lecture/écriture du
+  cookie `tagmaker_recent_modules` (30 jours, `SameSite=Lax`, non chiffré)
+- `components/recent-modules-tracker.tsx` — enregistre chaque consultation
+  (observation de l'URL) ; rendu invisible, monté dans `app/layout.tsx`
+- `components/recent-modules-gallery.tsx` — galerie de cartes (4 max, du plus
+  récent au plus ancien) ou squelette ; reçoit la liste validée en props
+- `app/page.tsx` — serveur : lit le cookie (`cookies()`), filtre et passe les
+  identifiants à la galerie (rendu SSR, pas de flash)
+
+Un module non consulté depuis plus d'un mois et les entrées hors catalogue
+sont ignorées à la lecture ; le cookie ne contient jamais de secret.
+
 ## Navigation par module
 
 - `lib/modules/registry.ts` — source unique des modules (`LabelModule`)
@@ -61,7 +78,6 @@ npm run lint        # ESLint, aucun warning
   sidebar-08, variante `inset`) avec logo « tag » (icône phosphor) ; la liste
   affiche les modules **par leur titre seul** et la description apparaît dans
   une **infobulle à droite** au survol
-- `components/skeleton-form.tsx` — silhouette d'attente à la racine
 - `components/header.tsx` — bouton de repli + fil d'Ariane du module courant
 - `app/layout.tsx` — coquille `SidebarProvider` / `AppSidebar` / `SidebarInset`
 - `app/icon.svg` — favicon « tag » (pictogramme identique au logo, thème
