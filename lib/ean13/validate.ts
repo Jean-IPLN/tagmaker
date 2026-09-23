@@ -32,4 +32,7 @@ export const labelRequestSchema = z.object({
     .string()
     .min(1, "Le format de papier est invalide")
     .optional(),
+  printerAddress: z
+    .ipv4({ error: "L'adresse IPv4 de l'imprimante est invalide" })
+    .optional(),
 });

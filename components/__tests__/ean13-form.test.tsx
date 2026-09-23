@@ -248,4 +248,32 @@ describe("Ean13Form", () => {
       )
     );
   });
+
+  it("envoie l'adresse d'imprimante mémorisée dans le réglage", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent", quantity: 2 }));
+
+    document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
+      JSON.stringify({ printerAddress: "192.168.1.99" })
+    )}; path=/`;
+
+    const { codeInput, quantityInput, submitButton } = renderForm();
+    fireEvent.change(codeInput, { target: { value: VALID_BODY.ean13 } });
+    fireEvent.change(quantityInput, { target: { value: "2" } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/print/ean13",
+        expect.objectContaining({
+          body: JSON.stringify({
+            ean13: VALID_BODY.ean13,
+            quantity: 2,
+            printerAddress: "192.168.1.99",
+          }),
+        })
+      )
+    );
+  });
 });

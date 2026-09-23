@@ -8,11 +8,17 @@ export interface PrintResult {
 
 const SEND_TIMEOUT_MS = 10_000;
 
-export function sendToPrinter(zpl: string): Promise<PrintResult> {
+export function sendToPrinter(
+  zpl: string,
+  target?: { host: string; port: number }
+): Promise<PrintResult> {
+  const host = target?.host ?? env.ZPL_PRINTER_HOST;
+  const port = target?.port ?? env.ZPL_PRINTER_PORT;
+
   return new Promise((resolve, reject) => {
     const socket = net.createConnection({
-      host: env.ZPL_PRINTER_HOST,
-      port: env.ZPL_PRINTER_PORT,
+      host,
+      port,
     });
 
     const cleanup = () => {
@@ -39,7 +45,7 @@ export function sendToPrinter(zpl: string): Promise<PrintResult> {
       cleanup();
       reject(
         new Error(
-          `Imprimante injoignable (${env.ZPL_PRINTER_HOST}:${env.ZPL_PRINTER_PORT}): ${error.message}`
+          `Imprimante injoignable (${host}:${port}): ${error.message}`
         )
       );
     });
@@ -48,7 +54,7 @@ export function sendToPrinter(zpl: string): Promise<PrintResult> {
       cleanup();
       reject(
         new Error(
-          `Délai d'attente dépassé pour l'imprimante (${env.ZPL_PRINTER_HOST}:${env.ZPL_PRINTER_PORT})`
+          `Délai d'attente dépassé pour l'imprimante (${host}:${port})`
         )
       );
     });

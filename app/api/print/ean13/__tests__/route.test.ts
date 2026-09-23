@@ -23,6 +23,7 @@ vi.mock("@/lib/env", () => ({
     ZPL_PRINTER_PORT: 9100,
     ZPL_RESOLUTION_DPI: 203,
     ZPL_PAPER_SIZES: "40x25, 50x25, 60x40, 100x50",
+    ZPL_SCAN_SUBNET: undefined,
   },
 }));
 
@@ -152,5 +153,48 @@ describe("POST /api/print/ean13", () => {
     const zpl = sendMock.mock.calls[0][0] as string;
     expect(zpl).toContain(`^PW${Math.round((40 * 203) / 25.4)}`);
     expect(zpl).toContain(`^LL${Math.round((25 * 203) / 25.4)}`);
+  });
+
+  it("200 — envoie vers l'adresse d'imprimante demandée (printerAddress)", async () => {
+    sendMock.mockResolvedValueOnce({ status: "sent" });
+    const response = await POST(
+      makeRequest({
+        ean13: "5901234123457",
+        quantity: 1,
+        printerAddress: "192.168.1.99",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(sendMock).toHaveBeenCalledWith(expect.any(String), {
+      host: "192.168.1.99",
+      port: 9100,
+    });
+  });
+
+  it("422 — rejette une printerAddress mal formée", async () => {
+    const response = await POST(
+      makeRequest({
+        ean13: "5901234123457",
+        quantity: 1,
+        printerAddress: "imprimante.salle",
+      })
+    );
+
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("200 — sans printerAddress, utilise le défaut de l'environnement", async () => {
+    sendMock.mockResolvedValueOnce({ status: "sent" });
+    const response = await POST(
+      makeRequest({ ean13: "5901234123457", quantity: 1 })
+    );
+
+    expect(response.status).toBe(200);
+    expect(sendMock).toHaveBeenCalledWith(expect.any(String), undefined);
+    expect(sendMock.mock.calls[0][1]).toBeUndefined();
   });
 });

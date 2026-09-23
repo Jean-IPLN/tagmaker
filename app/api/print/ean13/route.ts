@@ -40,7 +40,8 @@ function resolveDimensions(paperId: string | undefined): {
 async function performPrint(
   ean13: string,
   quantity: number,
-  paperId: string | undefined
+  paperId: string | undefined,
+  printerAddress: string | undefined
 ): Promise<{ status: "sent"; quantity: number }> {
   const { widthDots, heightDots } = resolveDimensions(paperId);
   const zpl = buildEan13Zpl({
@@ -49,7 +50,10 @@ async function performPrint(
     widthDots,
     heightDots,
   });
-  await sendToPrinter(zpl);
+  const target = printerAddress
+    ? { host: printerAddress, port: env.ZPL_PRINTER_PORT }
+    : undefined;
+  await sendToPrinter(zpl, target);
   return { status: "sent", quantity };
 }
 
@@ -71,7 +75,7 @@ export async function POST(request: Request): Promise<Response> {
     return errorResponse(422, "VALIDATION_ERROR", message);
   }
 
-const { ean13, quantity, paperId } = parsed.data;
+const { ean13, quantity, paperId, printerAddress } = parsed.data;
 
   if (paperId && !sizeById(paperId, getPaperSizes())) {
     return errorResponse(
@@ -89,7 +93,7 @@ const { ean13, quantity, paperId } = parsed.data;
     );
   }
 
-  const print = performPrint(ean13, quantity, paperId);
+  const print = performPrint(ean13, quantity, paperId, printerAddress);
   currentPrint = print;
 
   try {

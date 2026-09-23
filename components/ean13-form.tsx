@@ -28,6 +28,9 @@ export function Ean13Form() {
           ean13: code,
           quantity: qty,
           ...(settings.paperId ? { paperId: settings.paperId } : {}),
+          ...(settings.printerAddress
+            ? { printerAddress: settings.printerAddress }
+            : {}),
         }),
       });
 

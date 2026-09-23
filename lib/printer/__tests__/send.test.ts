@@ -7,17 +7,12 @@ const { envConfig } = vi.hoisted(() => ({
   envConfig: {
     ZPL_PRINTER_HOST: "127.0.0.1",
     ZPL_PRINTER_PORT: 0,
-    ZPL_LABEL_WIDTH_MM: 40,
-    ZPL_LABEL_HEIGHT_MM: 25,
     ZPL_RESOLUTION_DPI: 203,
+    ZPL_PAPER_SIZES: "40x25, 50x25, 60x40, 100x50",
   },
 }));
 
-vi.mock("@/lib/env", () => ({
-  env: envConfig,
-  LABEL_WIDTH_DOTS: 320,
-  LABEL_HEIGHT_DOTS: 200,
-}));
+vi.mock("@/lib/env", () => ({ env: envConfig }));
 
 import { sendToPrinter } from "@/lib/printer/send";
 
@@ -72,5 +67,31 @@ describe("sendToPrinter", () => {
     envConfig.ZPL_PRINTER_PORT = closed.port;
 
     await expect(sendToPrinter("^XA^XZ")).rejects.toThrow(/injoignable/i);
+  });
+
+  it("envoie vers la cible fournie en priorité sur l'environnement", async () => {
+    const targetHost = "127.0.0.1";
+    const started = await startTcpServer();
+    server = started.server;
+    envConfig.ZPL_PRINTER_HOST = "127.0.0.2";
+    envConfig.ZPL_PRINTER_PORT = 9999;
+
+    const zpl = "^XA^XZ";
+    await expect(
+      sendToPrinter(zpl, { host: targetHost, port: started.port })
+    ).resolves.toEqual({ status: "sent" });
+
+    await vi.waitFor(() => {
+      expect(started.received.join("")).toContain(zpl);
+    });
+  });
+
+  it("mentionne la cible fournie dans le message d'échec", async () => {
+    const closed = await startTcpServer();
+    await new Promise((resolve) => closed.server.close(resolve));
+
+    await expect(
+      sendToPrinter("^XA^XZ", { host: "127.0.0.1", port: closed.port })
+    ).rejects.toThrow(/127\.0\.0\.1:\d+/);
   });
 });

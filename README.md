@@ -21,6 +21,7 @@ Copier `.env.example` vers `.env` et ajuster si besoin :
 | `ZPL_PRINTER_PORT` | `9100` | port raw TCP de l'imprimante |
 | `ZPL_RESOLUTION_DPI` | `203` | résolution de l'imprimante (dpi) |
 | `ZPL_PAPER_SIZES` | *(requise)* | formats de papier — **source de vérité de la taille d'étiquette**, ex. `40x25, 75x25, 100x50, 100x150` ; le format par défaut est la plus petite surface |
+| `ZPL_SCAN_SUBNET` | *(vide)* | sous-réseau de découverte, ex. `192.168.1.0` (sinon dérivé de `ZPL_PRINTER_HOST`) |
 
 ## Lancement
 
@@ -46,11 +47,20 @@ les vues :
 - **Papier** : formats issus de `ZPL_PAPER_SIZES` (tri par surface croissante,
   le format par défaut = plus petite surface). La sélection est mémorisée côté
   client et appliquée à l'impression suivante.
+- **Imprimante** : l'adresse mémorisée est réaffichée directement sans scan ;
+  sinon le sélecteur passe en **état warn** (« Non défini » + icône
+  d'avertissement) et un **scan réseau** est lancé à l'ouverture
+  (`GET /api/printers/discover`, scan /24 local, port 9100, aucune donnée
+  envoyée). Pendant la recherche, le pied du menu affiche un **spinner** ;
+  une recherche terminée, ce même emplacement propose le bouton **Actualiser**
+  qui relance un scan complet sans effacer la sélection. Un choix explicite
+  est nécessaire pour mémoriser une adresse ; aucune imprimante détectée
+  n'est pas une erreur, mais un état affiché.
 
 Les réglages sont stockés dans le cookie `tagmaker_print_settings`
-(30 jours, `SameSite=Lax`, non HttpOnly) : `paperId`.
-Le formulaire EAN-13 envoie cette valeur dans le corps de la requête ;
-sans `paperId`, l'impression utilise le format par défaut de
+(30 jours, `SameSite=Lax`, non HttpOnly) : `paperId` et `printerAddress`.
+Le formulaire EAN-13 envoie ces valeurs dans le corps de la requête ;
+`sans `paperId`, l'impression utilise le format par défaut de
 `ZPL_PAPER_SIZES` (plus petite surface) — aucune impression bloquée.
 
 ## Tests
@@ -71,9 +81,14 @@ npm run lint        # ESLint, aucun warning
 - `lib/paper-sizes.ts` — formats de papier : parsing de `ZPL_PAPER_SIZES`,
   tri par surface, résolution par identifiant
 - `lib/print-settings.ts` / `lib/print-settings-cookie.ts` — logique et
-  adaptateur browser du cookie `tagmaker_print_settings` (`paperId`)
+  adaptateur browser du cookie `tagmaker_print_settings` (`paperId`,
+  `printerAddress`)
+- `lib/printer/discovery.ts` — scan réseau /24 (probe TCP, lot borné, budget
+  de temps, aucune donnée écrite)
+- `app/api/printers/discover/route.ts` — API `GET /api/printers/discover`
+  (`200 { printers }` / `503` sous-réseau indéterminable)
 - `components/settings-footer.tsx` — section **Paramètres** au pied de la
-  barre latérale (sélecteur Papier)
+  barre latérale (sélecteurs Papier et Imprimante)
 
 ## Modules récemment utilisés (accueil)
 
