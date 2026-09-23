@@ -1,5 +1,10 @@
-import { LABEL_HEIGHT_DOTS, LABEL_WIDTH_DOTS } from "@/lib/env";
+import { env } from "@/lib/env";
 import { labelRequestSchema } from "@/lib/ean13/validate";
+import {
+  DEFAULT_PAPER_SIZE,
+  parsePaperSizes,
+  sizeById,
+} from "@/lib/paper-sizes";
 import { sendToPrinter } from "@/lib/printer/send";
 import { buildEan13Zpl } from "@/lib/zpl/build";
 
@@ -9,15 +14,40 @@ function errorResponse(status: number, code: string, message: string) {
   return Response.json({ error: { code, message } }, { status });
 }
 
+function dotsFromMm(millimeters: number): number {
+  return Math.round((millimeters * env.ZPL_RESOLUTION_DPI) / 25.4);
+}
+
+function getPaperSizes() {
+  return parsePaperSizes(env.ZPL_PAPER_SIZES, DEFAULT_PAPER_SIZE);
+}
+
+function resolveDimensions(paperId: string | undefined): {
+  widthDots: number;
+  heightDots: number;
+} {
+  const sizes = getPaperSizes();
+  const size = paperId ? sizeById(paperId, sizes) : sizes[0];
+  if (!size) {
+    throw new Error("Aucun format de papier disponible.");
+  }
+  return {
+    widthDots: dotsFromMm(size.widthMm),
+    heightDots: dotsFromMm(size.heightMm),
+  };
+}
+
 async function performPrint(
   ean13: string,
-  quantity: number
+  quantity: number,
+  paperId: string | undefined
 ): Promise<{ status: "sent"; quantity: number }> {
+  const { widthDots, heightDots } = resolveDimensions(paperId);
   const zpl = buildEan13Zpl({
     ean13,
     quantity,
-    widthDots: LABEL_WIDTH_DOTS,
-    heightDots: LABEL_HEIGHT_DOTS,
+    widthDots,
+    heightDots,
   });
   await sendToPrinter(zpl);
   return { status: "sent", quantity };
@@ -41,16 +71,25 @@ export async function POST(request: Request): Promise<Response> {
     return errorResponse(422, "VALIDATION_ERROR", message);
   }
 
+const { ean13, quantity, paperId } = parsed.data;
+
+  if (paperId && !sizeById(paperId, getPaperSizes())) {
+    return errorResponse(
+      422,
+      "VALIDATION_ERROR",
+      `Format de papier inconnu : ${paperId}.`
+    );
+  }
+
   if (currentPrint) {
     return errorResponse(
       409,
       "PRINT_IN_PROGRESS",
-      "Une impression est déjà en cours, veuillez patienter."
+      "Une impression est déjà en cours."
     );
   }
 
-  const { ean13, quantity } = parsed.data;
-  const print = performPrint(ean13, quantity);
+  const print = performPrint(ean13, quantity, paperId);
   currentPrint = print;
 
   try {

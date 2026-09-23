@@ -18,8 +18,12 @@ vi.mock("@/lib/printer/send", () => ({
 }));
 
 vi.mock("@/lib/env", () => ({
-  LABEL_WIDTH_DOTS: 320,
-  LABEL_HEIGHT_DOTS: 200,
+  env: {
+    ZPL_PRINTER_HOST: "192.168.1.63",
+    ZPL_PRINTER_PORT: 9100,
+    ZPL_RESOLUTION_DPI: 203,
+    ZPL_PAPER_SIZES: "40x25, 50x25, 60x40, 100x50",
+  },
 }));
 
 import { POST } from "@/app/api/print/ean13/route";
@@ -113,5 +117,40 @@ describe("POST /api/print/ean13", () => {
     expect(response.status).toBe(503);
     const body = await response.json();
     expect(body.error.code).toBe("PRINTER_UNAVAILABLE");
+  });
+
+  it("200 — applique les dimensions du format de papier demandé (paperId)", async () => {
+    sendMock.mockResolvedValueOnce({ status: "sent" });
+    const response = await POST(
+      makeRequest({ ean13: "5901234123457", quantity: 2, paperId: "100x50" })
+    );
+
+    expect(response.status).toBe(200);
+    const zpl = sendMock.mock.calls[0][0] as string;
+    expect(zpl).toContain(`^PW${Math.round((100 * 203) / 25.4)}`);
+    expect(zpl).toContain(`^LL${Math.round((50 * 203) / 25.4)}`);
+  });
+
+  it("422 — rejette un paperId inconnu du serveur", async () => {
+    const response = await POST(
+      makeRequest({ ean13: "5901234123457", quantity: 1, paperId: "999x999" })
+    );
+
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("200 — sans paperId, utilise le format par défaut (plus petite surface)", async () => {
+    sendMock.mockResolvedValueOnce({ status: "sent" });
+    const response = await POST(
+      makeRequest({ ean13: "5901234123457", quantity: 1 })
+    );
+
+    expect(response.status).toBe(200);
+    const zpl = sendMock.mock.calls[0][0] as string;
+    expect(zpl).toContain(`^PW${Math.round((40 * 203) / 25.4)}`);
+    expect(zpl).toContain(`^LL${Math.round((25 * 203) / 25.4)}`);
   });
 });

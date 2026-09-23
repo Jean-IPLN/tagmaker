@@ -7,6 +7,8 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { RecentModulesTracker } from "@/components/recent-modules-tracker";
+import { env } from "@/lib/env";
+import { DEFAULT_PAPER_SIZE, parsePaperSizes } from "@/lib/paper-sizes";
 
 const spaceGrotesk = Space_Grotesk({subsets:['latin'],variable:'--font-sans'});
 
@@ -25,7 +27,14 @@ export const metadata: Metadata = {
   description: "Application locale d'impression d'étiquettes à code-barres EAN-13",
 };
 
+function getDefaultPaperSettings() {
+  const paperSizes = parsePaperSizes(env.ZPL_PAPER_SIZES, DEFAULT_PAPER_SIZE);
+  return { paperSizes, defaultPaperId: paperSizes[0].id };
+}
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  const { paperSizes, defaultPaperId } = getDefaultPaperSettings();
+
   return (
     <html
       lang="fr"
@@ -34,7 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         <SidebarProvider>
           <RecentModulesTracker />
-          <AppSidebar />
+          <AppSidebar paperSizes={paperSizes} defaultPaperId={defaultPaperId} />
           <SidebarInset>
             <SiteHeader />
             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">

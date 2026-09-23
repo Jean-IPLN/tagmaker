@@ -28,4 +28,8 @@ export const labelRequestSchema = z.object({
     .int("La quantité doit être un nombre entier")
     .min(1, "La quantité doit être au moins 1")
     .max(1000, "La quantité ne peut pas dépasser 1000"),
+  paperId: z
+    .string()
+    .min(1, "Le format de papier est invalide")
+    .optional(),
 });

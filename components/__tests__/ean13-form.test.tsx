@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Ean13Form } from "@/components/ean13-form";
+import { PRINT_SETTINGS_COOKIE_NAME } from "@/lib/print-settings-cookie";
 
 const { toastMock } = vi.hoisted(() => ({
   toastMock: {
@@ -37,6 +38,7 @@ describe("Ean13Form", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     Object.values(toastMock).forEach((mock) => mock.mockClear());
+    document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=; Max-Age=0; path=/`;
   });
 
   it("n'envoie aucune requête si l'EAN-13 est invalide", async () => {
@@ -217,5 +219,33 @@ describe("Ean13Form", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => expect(toastMock.success).toHaveBeenCalled());
+  });
+
+  it("envoie le format de papier mémorisé dans le réglage", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent", quantity: 2 }));
+
+    document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
+      JSON.stringify({ paperId: "100x50" })
+    )}; path=/`;
+
+    const { codeInput, quantityInput, submitButton } = renderForm();
+    fireEvent.change(codeInput, { target: { value: VALID_BODY.ean13 } });
+    fireEvent.change(quantityInput, { target: { value: "2" } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/print/ean13",
+        expect.objectContaining({
+          body: JSON.stringify({
+            ean13: VALID_BODY.ean13,
+            quantity: 2,
+            paperId: "100x50",
+          }),
+        })
+      )
+    );
   });
 });

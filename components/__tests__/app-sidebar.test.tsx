@@ -4,6 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { getLabelModules } from "@/lib/modules/registry";
+import type { PaperSize } from "@/lib/paper-sizes";
+
+const PAPER_SIZES: PaperSize[] = [
+  { id: "40x25", widthMm: 40, heightMm: 25, surfaceMm2: 1000, label: "40 × 25 mm" },
+];
 
 let mockPathname = "/";
 
@@ -14,7 +19,7 @@ vi.mock("next/navigation", () => ({
 function renderSidebar() {
   return render(
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar paperSizes={PAPER_SIZES} defaultPaperId="40x25" />
     </SidebarProvider>
   );
 }

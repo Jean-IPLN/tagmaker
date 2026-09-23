@@ -19,8 +19,15 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { getLabelModules } from "@/lib/modules/registry";
+import { SettingsFooter } from "@/components/settings-footer";
+import type { PaperSize } from "@/lib/paper-sizes";
 
-export function AppSidebar() {
+export interface AppSidebarProps {
+  paperSizes: PaperSize[];
+  defaultPaperId: string;
+}
+
+export function AppSidebar({ paperSizes, defaultPaperId }: AppSidebarProps) {
   const pathname = usePathname();
   const modules = getLabelModules();
 
@@ -58,6 +65,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SettingsFooter paperSizes={paperSizes} defaultPaperId={defaultPaperId} />
     </Sidebar>
   );
 }

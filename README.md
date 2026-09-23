@@ -19,9 +19,8 @@ Copier `.env.example` vers `.env` et ajuster si besoin :
 |----------|--------|------|
 | `ZPL_PRINTER_HOST` | `192.168.1.63` | adresse de l'imprimante |
 | `ZPL_PRINTER_PORT` | `9100` | port raw TCP de l'imprimante |
-| `ZPL_LABEL_WIDTH_MM` | `40` | largeur de l'étiquette (mm) |
-| `ZPL_LABEL_HEIGHT_MM` | `25` | hauteur de l'étiquette (mm) |
 | `ZPL_RESOLUTION_DPI` | `203` | résolution de l'imprimante (dpi) |
+| `ZPL_PAPER_SIZES` | *(requise)* | formats de papier — **source de vérité de la taille d'étiquette**, ex. `40x25, 75x25, 100x50, 100x150` ; le format par défaut est la plus petite surface |
 
 ## Lancement
 
@@ -39,6 +38,21 @@ quantité supérieure à 2 déclenche une modal de confirmation explicite. Le
 module affiché est mis en évidence dans la barre latérale et dans le fil
 d'Ariane en en-tête ; la navigation est persistante sur toutes les vues.
 
+## Paramètres (pied de barre latérale)
+
+Une section **Paramètres** est épinglée au pied de la barre latérale sur toutes
+les vues :
+
+- **Papier** : formats issus de `ZPL_PAPER_SIZES` (tri par surface croissante,
+  le format par défaut = plus petite surface). La sélection est mémorisée côté
+  client et appliquée à l'impression suivante.
+
+Les réglages sont stockés dans le cookie `tagmaker_print_settings`
+(30 jours, `SameSite=Lax`, non HttpOnly) : `paperId`.
+Le formulaire EAN-13 envoie cette valeur dans le corps de la requête ;
+sans `paperId`, l'impression utilise le format par défaut de
+`ZPL_PAPER_SIZES` (plus petite surface) — aucune impression bloquée.
+
 ## Tests
 
 ```bash
@@ -54,6 +68,12 @@ npm run lint        # ESLint, aucun warning
 - `lib/printer/send.ts` — envoi raw TCP vers l'imprimante
 - `app/api/print/ean13/route.ts` — API `POST /api/print/ean13`
 - `components/ean13-form.tsx` / `ean13-confirm-dialog.tsx` — formulaire + modal critique
+- `lib/paper-sizes.ts` — formats de papier : parsing de `ZPL_PAPER_SIZES`,
+  tri par surface, résolution par identifiant
+- `lib/print-settings.ts` / `lib/print-settings-cookie.ts` — logique et
+  adaptateur browser du cookie `tagmaker_print_settings` (`paperId`)
+- `components/settings-footer.tsx` — section **Paramètres** au pied de la
+  barre latérale (sélecteur Papier)
 
 ## Modules récemment utilisés (accueil)
 

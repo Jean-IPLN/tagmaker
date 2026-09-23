@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { labelRequestSchema } from "@/lib/ean13/validate";
+import { readPrintSettings } from "@/lib/print-settings-cookie";
 
 export function Ean13Form() {
   const [ean13, setEan13] = useState("");
@@ -19,10 +20,15 @@ export function Ean13Form() {
   async function submitPrint(code: string, qty: number) {
     setIsSending(true);
     try {
+      const settings = readPrintSettings();
       const response = await fetch("/api/print/ean13", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ean13: code, quantity: qty }),
+        body: JSON.stringify({
+          ean13: code,
+          quantity: qty,
+          ...(settings.paperId ? { paperId: settings.paperId } : {}),
+        }),
       });
 
       const data: { error?: { message?: string } } | null =
