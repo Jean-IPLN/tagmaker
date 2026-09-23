@@ -74,7 +74,8 @@ npm run lint        # ESLint, aucun warning
 ## Architecture du module EAN-13
 
 - `lib/ean13/validate.ts` — validation EAN-13 partagée client/serveur
-- `lib/zpl/build.ts` — génération du flux ZPL (fonction pure)
+- `lib/zpl/build.ts` — génération du flux ZPL (fonction pure) : code-barres
+  centré en largeur/hauteur et dimensionné au maximum scannable du format choisi
 - `lib/printer/send.ts` — envoi raw TCP vers l'imprimante
 - `app/api/print/ean13/route.ts` — API `POST /api/print/ean13`
 - `components/ean13-form.tsx` / `ean13-confirm-dialog.tsx` — formulaire + modal critique
@@ -122,3 +123,6 @@ Le module actif est dérivé de l'URL (`usePathname`), sans store ni état globa
 
 Note : le flux ZPL utilise la commande native `^BE` (EAN-13) ; le `^FD`
 transporte les 12 chiffres de données, l'imprimante calcule la clé de contrôle.
+Le code-barres (barres + chiffres lisibles) est centré sur l'étiquette et
+occupe tout l'espace scannable du format papier sélectionné (largeur module
+bornée par le standard, zones de silence préservées).

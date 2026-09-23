@@ -17,6 +17,13 @@ dans `.env` (aucun changement de code attendu).
 
 ## Flux généré (structure)
 
+> **OBSOLÈTE pour la géométrie (feature 008)** : les valeurs `^BY`, `^FO`,
+> `^BEN` ci-dessous (module, position, hauteur câblés) sont **supplantées**
+> par le calcul dynamique centré/pleine échelle détaillé dans
+> [`specs/008-ean13-centered-barcode/contracts/zpl.md`](../../008-ean13-centered-barcode/contracts/zpl.md).
+> Cette section historique reste lue pour le contexte initial (12 chiffres,
+> zones de silence, `^PQ`).
+
 ```zpl
 ^XA
 ^PW320^LL200            ; largeur d'impression (largeur étiquette)
