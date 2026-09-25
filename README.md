@@ -34,7 +34,10 @@ Ouvrir `http://localhost:3000`. La barre latérale liste les modules ; la
 vue d'accueil affiche une **galerie de cartes** des modules récemment
 consultés (les 4 plus récents), ou une silhouette (skeleton) de 4 cartes quand
 l'historique est vide. Le module **EAN-13** permet de saisir un code (13
-chiffres, clé de contrôle vérifiée) et une quantité, puis d'imprimer. Une
+chiffres, clé de contrôle vérifiée) et une quantité, puis d'imprimer. Le
+module **Emplacement** imprime des code-barres **Code 128** pour un
+emplacement unique (classique ou dynamique `#D`) ou une plage (une étiquette
+par emplacement, quantité masquée en mode plage). Une
 quantité supérieure à 2 déclenche une modal de confirmation explicite. Le
 module affiché est mis en évidence dans la barre latérale et dans le fil
 d'Ariane en en-tête ; la navigation est persistante sur toutes les vues.
@@ -59,9 +62,9 @@ les vues :
 
 Les réglages sont stockés dans le cookie `tagmaker_print_settings`
 (30 jours, `SameSite=Lax`, non HttpOnly) : `paperId` et `printerAddress`.
-Le formulaire EAN-13 envoie ces valeurs dans le corps de la requête ;
-`sans `paperId`, l'impression utilise le format par défaut de
-`ZPL_PAPER_SIZES` (plus petite surface) — aucune impression bloquée.
+Le formulaire envoie ces valeurs dans le corps de la requête (modules
+EAN-13 et Emplacement) ; sans `paperId`, l'impression utilise le format par
+défaut de `ZPL_PAPER_SIZES` (plus petite surface) — aucune impression bloquée.
 
 ## Tests
 

@@ -12,6 +12,12 @@ const modules: LabelModule[] = [
     description: "Imprimer des étiquettes à code-barres EAN-13",
     href: "/ean13",
   },
+  {
+    id: "location",
+    name: "Emplacement",
+    description: "Imprimer des étiquettes à code-barres Code 128 (classique ou #D)",
+    href: "/emplacement",
+  },
 ];
 
 export function getLabelModules(): LabelModule[] {

@@ -14,26 +14,36 @@ const newModule: LabelModule = {
 };
 
 describe("registre des modules", () => {
-  it("expose le module ean13 avec les métadonnées attendues", () => {
+  it("expose ean13 puis le module Emplacement avec leurs métadonnées", () => {
     const modules = getLabelModules();
-    expect(modules).toHaveLength(1);
+    expect(modules).toHaveLength(2);
     expect(modules[0]).toEqual({
       id: "ean13",
       name: "EAN-13",
       description: "Imprimer des étiquettes à code-barres EAN-13",
       href: "/ean13",
     });
+    expect(modules[1]).toEqual({
+      id: "location",
+      name: "Emplacement",
+      description:
+        "Imprimer des étiquettes à code-barres Code 128 (classique ou #D)",
+      href: "/emplacement",
+    });
   });
 
   it("permet d'ajouter un module sans modifier ean13 (extensibilité FR-002)", () => {
     const ean13Before = getLabelModules().find((m) => m.id === "ean13");
+    const locationBefore = getLabelModules().find((m) => m.id === "location");
     expect(ean13Before).toBeDefined();
+    expect(locationBefore).toBeDefined();
 
     registerLabelModule(newModule);
 
     const modules = getLabelModules();
-    expect(modules).toHaveLength(2);
+    expect(modules).toHaveLength(3);
     expect(modules.find((m) => m.id === "ean13")).toEqual(ean13Before);
+    expect(modules.find((m) => m.id === "location")).toEqual(locationBefore);
     expect(modules.some((m) => m.id === "code128")).toBe(true);
   });
 

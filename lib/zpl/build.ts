@@ -1,3 +1,5 @@
+import { computeBarcodeLayout } from "@/lib/zpl/layout";
+
 export interface BuildEan13ZplInput {
   ean13: string;
   quantity: number;
@@ -15,37 +17,6 @@ const TEXT_HEIGHT_DOTS = 25;
 const TARGET_HEIGHT_COVERAGE = 0.9;
 const MIN_BAR_HEIGHT_DOTS = 146;
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
-
-function resolveModuleWidth(widthDots: number): number {
-  return clamp(
-    Math.floor(widthDots / TOTAL_MODULES),
-    MIN_MODULE_WIDTH,
-    MAX_MODULE_WIDTH
-  );
-}
-
-function resolvePosition(widthDots: number, barsWidth: number): number {
-  return Math.round((widthDots - barsWidth) / 2);
-}
-
-function resolveBlockHeight(heightDots: number): number {
-  return Math.round(heightDots * TARGET_HEIGHT_COVERAGE);
-}
-
-function resolveBarHeight(blockHeight: number): number {
-  return Math.max(blockHeight - TEXT_HEIGHT_DOTS, MIN_BAR_HEIGHT_DOTS);
-}
-
-function resolveVerticalMargin(
-  heightDots: number,
-  blockHeight: number
-): number {
-  return Math.round((heightDots - blockHeight) / 2);
-}
-
 export function buildEan13Zpl({
   ean13,
   quantity,
@@ -54,11 +25,17 @@ export function buildEan13Zpl({
 }: BuildEan13ZplInput): string {
   const dataDigits = ean13.slice(0, 12);
 
-  const moduleWidth = resolveModuleWidth(widthDots);
-  const x = resolvePosition(widthDots, DATA_MODULES * moduleWidth);
-  const blockHeight = resolveBlockHeight(heightDots);
-  const barHeight = resolveBarHeight(blockHeight);
-  const y = resolveVerticalMargin(heightDots, blockHeight);
+  const { moduleWidth, x, barHeight, y } = computeBarcodeLayout({
+    widthDots,
+    heightDots,
+    totalModules: TOTAL_MODULES,
+    symbolModules: DATA_MODULES,
+    minModuleWidth: MIN_MODULE_WIDTH,
+    maxModuleWidth: MAX_MODULE_WIDTH,
+    textHeightDots: TEXT_HEIGHT_DOTS,
+    targetHeightCoverage: TARGET_HEIGHT_COVERAGE,
+    minBarHeightDots: MIN_BAR_HEIGHT_DOTS,
+  });
 
   return [
     "^XA",
