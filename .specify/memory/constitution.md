@@ -63,6 +63,18 @@ la machine :
 - Les règles de sécurité ne doivent pas complexifier l'architecture : elles
   restent proportionnées au contexte local.
 
+### VII. Exposition réseau — exception « déploiement serveur » (amendement 1.1.0)
+
+La règle « écoute uniquement sur localhost » s'applique par défaut, en
+particulier en développement. Exception sanctuarisée : **le seul** chemin
+d'exposition réseau est le service systemd installé par `scripts/install.sh`
+(feature 011), qui écoute sur `0.0.0.0` (LAN) pour répondre à un besoin validé
+(Q1:B — service utilisé depuis le réseau local, imprimante thermique ZPL sur le
+LAN). Aucun contrôle d'accès n'est ajouté (Q2:A) ; la sécurité repose donc sur
+la confiance du LAN, ce compromis étant explicitement accepté par l'utilisateur.
+Toute autre ouverture réseau nécessite un nouvel amendement. Cette exception est
+documentée dans `specs/011-install-service-systemd/`.
+
 ## Développement & Qualité
 
 - Tout travail est réalisé sur une branche dédiée (`feature/xxx`,
@@ -90,4 +102,4 @@ la machine :
 - Chaque PR et chaque revue doit vérifier la conformité aux principes du
   présent document.
 
-**Version**: 1.0.0 | **Ratifiée le**: 2026-09-18 | **Dernier amendement**: 2026-09-18
+**Version**: 1.1.0 | **Ratifiée le**: 2026-09-18 | **Dernier amendement**: 2026-09-25

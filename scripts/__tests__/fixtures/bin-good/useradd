@@ -1,0 +1,7 @@
+#!/bin/sh
+# Stub useradd/userdel : logue l'invocation dans TAGMAKER_STUB_LOG/calls.log.
+# Permet d'asserter l'appel aux commandes sans droits root réels.
+
+logfile="${TAGMAKER_STUB_LOG:?TAGMAKER_STUB_LOG doit être défini}/calls.log"
+printf 'useradd %s\n' "$*" >> "$logfile"
+exit 0

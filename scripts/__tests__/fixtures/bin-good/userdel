@@ -1,0 +1,6 @@
+#!/bin/sh
+# Stub userdel : logue l'invocation (miroir de useradd).
+
+logfile="${TAGMAKER_STUB_LOG:?TAGMAKER_STUB_LOG doit être défini}/calls.log"
+printf 'userdel %s\n' "$*" >> "$logfile"
+exit 0

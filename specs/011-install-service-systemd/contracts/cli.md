@@ -1,0 +1,107 @@
+# Contrat CLI — script d'installation `install.sh` (feature 011)
+
+**Branch**: `feature/011-install-service-systemd` | **Date**: 2026-09-25
+
+Le script `scripts/install.sh` est un script **POSIX `sh`** (`/bin/sh`),
+exécutable en tant que `root`/sudo.
+
+## Usage
+
+```text
+install.sh [COMMANDE] [OPTIONS]
+
+COMMANDE (défaut : install)
+  install     Installe ou met à jour le service (construction puis activation).
+  uninstall   Désinstalle le service (équivalent du drapeau --uninstall).
+  status      Imprime l'état du service (systemd) et du point d'accès.
+
+OPTIONS
+  -d, --dir <CHEMIN>       dossier de l'application (défaut: /opt/tagmaker)
+  -e, --env <CHEMIN>       fichier de configuration (défaut: /etc/tagmaker/tagmaker.env)
+  -u, --user <NOM>         utilisateur système dédié (défaut: tagmaker)
+  -p, --port <PORT>        port d'écoute (défaut: 3000)
+  -h, --host <ADRESSE>     adresse d'écoute (défaut: 0.0.0.0)
+  -U, --uninstall           désinstalle le service (drapeau équivalent à la
+                            commande `uninstall` ; désactive `install`)
+      --keep-config        (désinstallation) conserve /etc/tagmaker
+                           (vaut pour `uninstall` et --uninstall)
+      --dry-run            valide et affiche les actions prévues, ne modifie rien
+  -q, --quiet              réduit la sortie
+      --help               affiche l'usage et quitte (code 0)
+```
+
+Options aussi configurables par variables d'environnement à la même priorité
+que les flags : `TAGMAKER_DIR`, `TAGMAKER_ENV`, `TAGMAKER_USER`,
+`TAGMAKER_PORT`, `TAGMAKER_HOST`. **Précédence** : flag > variable > défaut.
+
+## Prérequis détectés
+
+- `root`/droits admin (sinon erreur explicite avec la commande à lancer) ;
+- famille de distribution : **apt** (Debian/Ubuntu) ou **dnf/yum**
+  (RHEL/Fedora/Rocky/RHEL-likes) ; toute autre famille → erreur explicite ;
+- **Node.js ≥ 20.9** et `npm` (installés via le gestionnaire de paquets si
+  absents) ; version insuffisante → erreur avec instruction de mise à niveau.
+
+## Comportement `install`
+
+1. Vérifie les droits et prérequis (installation des paquets manquants).
+2. Crée `TAGMAKER_USER` (si absent) — non privilégié, `nologin`.
+3. Crée `/etc/tagmaker/tagmaker.env` depuis `.env.example` **si absent**
+   (jamais écrasé) ; applique host/port par défaut du contrat config.
+4. Copie le dépôt vers `TAGMAKER_DIR` (propriétaire `TAGMAKER_USER`) — ou
+   l'utilise en place si c'est déjà le dossier de travail.
+5. Exécute `npm ci && npm run build` **en tant que** `TAGMAKER_USER`.
+6. Écrit l'unité `/etc/systemd/system/tagmaker.service` puis
+   `systemctl daemon-reload`.
+7. `systemctl enable --now tagmaker` et `systemctl start tagmaker`.
+8. Affiche le récapitulatif (statut, point d'accès, commandes utiles).
+
+En cas d'échec de construction : **arrêt immédiat**, aucune unité
+enregistrée/démarrée, dossier existant intact (FR-003).
+
+## Codes de sortie
+
+| Code | Signification |
+|------|---------------|
+| 0 | Succès (ou `--help`) |
+| 1 | Échec d'installation/mise à jour (prérequis, build, unit) |
+| 2 | Mauvaise utilisation (option ou commande inconnue) |
+
+## Modes & priorité désinstallation
+
+- Deux écritures **équivalentes** activent la désinstallation : la **commande**
+  `uninstall` ou le **drapeau** `--uninstall` (alias court `-U`) — le besoin
+  « des flags pour désinstaller » est satisfait par les deux formes.
+- `--uninstall` **désactive** le mode d'installation (implicit `install` par
+  défaut) : lancer `install.sh --uninstall` désinstalle sans poser de question.
+- `uninstall` ET `--uninstall` ensemble → même mode, sans erreur.
+- `--keep-config` ne s'applique qu'en mode désinstallation ; combiné à une
+  installation (commande `install` sans `--uninstall`) → usage incorrect
+  (code 2).
+
+## Comportement `uninstall`
+
+1. `systemctl disable --now tagmaker` (ignore l'absence d'unité).
+2. Supprime `/etc/systemd/system/tagmaker.service` + `daemon-reload`.
+3. Supprime `TAGMAKER_USER` et `TAGMAKER_DIR` (données du dossier).
+4. Supprime le fichier de configuration (sauf `--keep-config`).
+5. Sortie : récapitulatif des éléments supprimés (SC-005).
+
+Toujours idempotent : `uninstall` sur une installation absente réussit (code 0)
+avec un message informatif.
+
+## Contrat de sortie
+
+- Sortie **humainement lisible** (sans mode JSON prévu — YAGNI).
+- `status` affiche : état systemd, PID/uptime, point d'accès
+  (`http://<host>:<port>`), dossier, fichier de configuration.
+- Messages d'erreur préfixés `ERROR:` ; les avertissements `WARN:`. La sortie
+  standard porte le récapitulatif, les journaux d'action.
+
+## Testabilité
+
+- **`--dry-run`** : mêmes calculs mais aucun effet de bord (testé dans la CI,
+  permutation sur répertoires temporaires, commandes externes stubfées via
+  `PATH`).
+- Fonctions pures exposées (parse d'arguments, détection de famille, synthèse
+  d'unité, lecture de config) testées par le runner `scripts/__tests__/run-install-tests.sh`.

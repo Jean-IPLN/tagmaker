@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stub npm : réussit toujours (ci/run build "réussissent") — utilisé pour
+# le test "build ok" et le build-avant-activation du dry-run.
+exit 0

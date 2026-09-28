@@ -1,0 +1,15 @@
+#!/bin/sh
+# Stub id : les utilisateurs « tagmaker » sont réputés exister (tests).
+# Nécessaire pour exercer uninstall_remove_user / create_service_user sans root.
+case "$1" in
+    -u)
+        printf '0\n'
+        exit 0
+        ;;
+esac
+case "${1:-}" in
+    tagmaker*)
+        exit 0
+        ;;
+esac
+exit 1

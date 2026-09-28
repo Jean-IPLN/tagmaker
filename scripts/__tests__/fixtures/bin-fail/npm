@@ -1,0 +1,6 @@
+#!/bin/sh
+# Stub npm : échoue (code TAGMAKER_STUB_NPM_FAIL, 7 par défaut) — utilisé pour
+# le test "build échoué → pas d'activation" (FR-003).
+
+fail="${TAGMAKER_STUB_NPM_FAIL:-7}"
+exit "$fail"

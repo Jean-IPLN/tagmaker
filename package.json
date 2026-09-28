@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
+    "test": "vitest run && sh scripts/__tests__/run-install-tests.sh",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },

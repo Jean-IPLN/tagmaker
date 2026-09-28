@@ -1,0 +1,19 @@
+#!/bin/sh
+# Stub systemctl pour les tests POSIX (PATH injecté par run-install-tests.sh).
+# Réponses pilotées par TAGMAKER_STUB_SYSTEMCTL_STATE / _ENABLED.
+
+state="${TAGMAKER_STUB_SYSTEMCTL_STATE:-active}"
+enabled="${TAGMAKER_STUB_SYSTEMCTL_ENABLED:-enabled}"
+
+case "$1" in
+  is-active)
+    printf '%s\n' "$state"
+    ;;
+  is-enabled)
+    printf '%s\n' "$enabled"
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+exit 0
