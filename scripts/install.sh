@@ -61,7 +61,9 @@ OPTIONS
       --help               affiche cet usage et quitte (code 0)
 
 Variables d'environnement (même priorité que les flags) : TAGMAKER_DIR,
-TAGMAKER_ENV, TAGMAKER_USER, TAGMAKER_PORT, TAGMAKER_HOST.
+TAGMAKER_ENV, TAGMAKER_USER, TAGMAKER_PORT, TAGMAKER_HOST. TAGMAKER_NODE
+force le binaire Node à utiliser (sinon détection : PATH puis /usr/local/bin
+et /usr/bin, version la plus récente ≥ ${REQUIRED_NODE_MAJOR}.${REQUIRED_NODE_MINOR}).
 Codes de sortie : 0 succès, 1 échec, 2 mauvaise utilisation.
 EOF
 }
@@ -121,16 +123,68 @@ detect_pkg_manager() {
     printf '%s' "none"
 }
 
-node_major() { node -v 2>/dev/null | sed 's/^v//' | cut -d. -f1; }
-node_minor() { node -v 2>/dev/null | sed 's/^v//' | cut -d. -f2; }
+node_version_of() {
+    "$1" -v 2>/dev/null | sed 's/^v//'
+}
 
-node_sufficient() {
-    maj=$(node_major)
-    [ -z "$maj" ] && return 1
-    [ "$maj" -lt "$REQUIRED_NODE_MAJOR" ] && return 1
-    [ "$maj" -gt "$REQUIRED_NODE_MAJOR" ] && return 0
-    min=$(node_minor)
-    [ -n "$min" ] && [ "$min" -ge "$REQUIRED_NODE_MINOR" ]
+node_candidate_sufficient() {
+    bin="$1"
+    [ -x "$bin" ] || return 1
+    ver=$(node_version_of "$bin")
+    [ -n "$ver" ] || return 1
+    maj=$(printf '%s' "$ver" | cut -d. -f1)
+    min=$(printf '%s' "$ver" | cut -d. -f2)
+    [ -n "$min" ] || min="0"
+    if [ "$maj" -lt "$REQUIRED_NODE_MAJOR" ]; then return 1; fi
+    if [ "$maj" -gt "$REQUIRED_NODE_MAJOR" ]; then return 0; fi
+    [ "$min" -ge "$REQUIRED_NODE_MINOR" ]
+}
+
+# Candidats Node binaires : tous les répertoires du PATH puis les emplacements
+# systèmes. Un même binaire peut sortir des deux sources — dédoublonné plus bas.
+node_candidate_paths() {
+    printf '%s\n' "$PATH" | tr ':' '\n' | while read -r dir; do
+        [ -n "$dir" ] && [ -x "$dir/node" ] && printf '%s\n' "$dir/node"
+    done
+    [ -x /usr/local/bin/node ] && printf '%s\n' /usr/local/bin/node
+    [ -x /usr/bin/node ] && printf '%s\n' /usr/bin/node
+    :
+}
+
+# Résout le binaire Node à utiliser de bout en bout (prérequis → build → unité) :
+# override TAGMAKER_NODE prioritaire, sinon le candidat le plus récent ≥ plancher.
+resolve_node_bin() {
+    if [ -n "${TAGMAKER_NODE:-}" ]; then
+        if node_candidate_sufficient "$TAGMAKER_NODE"; then
+            printf '%s' "$TAGMAKER_NODE"
+            return 0
+        fi
+        printf 'ERROR: TAGMAKER_NODE invalide (%s) — binaire inexécutable ou Node < %s.%s.\n' \
+            "$TAGMAKER_NODE" "$REQUIRED_NODE_MAJOR" "$REQUIRED_NODE_MINOR" >&2
+        return 1
+    fi
+
+    best=""
+    best_maj="-1"
+    best_min="-1"
+    seen=""
+    for cand in $(node_candidate_paths); do
+        [ -n "$cand" ] || continue
+        case " $seen " in *" $cand "*) continue ;; esac
+        seen="$seen $cand"
+        node_candidate_sufficient "$cand" || continue
+        ver=$(node_version_of "$cand")
+        maj=$(printf '%s' "$ver" | cut -d. -f1)
+        min=$(printf '%s' "$ver" | cut -d. -f2)
+        [ -n "$min" ] || min="0"
+        if [ "$maj" -gt "$best_maj" ] || { [ "$maj" -eq "$best_maj" ] && [ "$min" -gt "$best_min" ]; }; then
+            best="$cand"
+            best_maj="$maj"
+            best_min="$min"
+        fi
+    done
+    printf '%s' "$best"
+    [ -n "$best" ]
 }
 
 ensure_prereqs() {
@@ -141,8 +195,9 @@ ensure_prereqs() {
         return 1
     }
 
-    if command -v node >/dev/null 2>&1 && node_sufficient; then
-        log "Node.js $(node -v) présent et suffisant."
+    NODE_BIN=$(resolve_node_bin) || return 1
+    if [ -n "$NODE_BIN" ]; then
+        log "Node.js $($NODE_BIN -v) présent et suffisant ($NODE_BIN)."
         return 0
     fi
 
@@ -160,12 +215,13 @@ ensure_prereqs() {
         printf 'ERROR: Node.js introuvable après installation.\n' >&2
         return 1
     }
-    node_sufficient || {
-        printf 'ERROR: Node.js (%s) trop ancien. Exigez Node.js ≥ %s.%s puis relancez.\n' \
-            "$(node -v)" "$REQUIRED_NODE_MAJOR" "$REQUIRED_NODE_MINOR" >&2
+    NODE_BIN=$(command -v node)
+    node_candidate_sufficient "$NODE_BIN" || {
+        printf 'ERROR: Node.js (%s) trop ancien. Exigez Node.js ≥ %s.%s puis relancez (ou définissez TAGMAKER_NODE — cf. --help).\n' \
+            "$($NODE_BIN -v)" "$REQUIRED_NODE_MAJOR" "$REQUIRED_NODE_MINOR" >&2
         return 1
     }
-    log "Node.js $(node -v) installé."
+    log "Node.js $($NODE_BIN -v) installé ($NODE_BIN)."
 }
 
 # ---------------------------------------------------------------------------
@@ -235,7 +291,8 @@ unit_template() {
     appdir="$3"
     envfile="$4"
     user="$5"
-    node_bin=$(command -v node 2>/dev/null || printf '%s' "node")
+    node_bin="${NODE_BIN:-}"
+    [ -n "$node_bin" ] || node_bin=$(command -v node 2>/dev/null || printf '%s' "node")
 
     cat <<EOF
 [Unit]
@@ -283,7 +340,13 @@ build_app() {
     user="$2"
     log "Build production (npm ci && npm run build, en tant que ${user})..."
     chown -R "$user:$user" "$appdir"
-    su -s /bin/sh "$user" -c "npm --prefix '$appdir' ci --no-audit --no-fund && npm --prefix '$appdir' run build"
+    node_dir=""
+    [ -n "${NODE_BIN:-}" ] && node_dir=$(dirname "$NODE_BIN")
+    if [ -n "$node_dir" ]; then
+        su -s /bin/sh "$user" -c "PATH='$node_dir:\$PATH'; export PATH; npm --prefix '$appdir' ci --no-audit --no-fund && npm --prefix '$appdir' run build"
+    else
+        su -s /bin/sh "$user" -c "npm --prefix '$appdir' ci --no-audit --no-fund && npm --prefix '$appdir' run build"
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -458,9 +521,11 @@ uninstall_remove_config() {
 # Mode sec, sans effet de bord (--dry-run)
 # ---------------------------------------------------------------------------
 dry_run_install() {
+    node_hint=$(resolve_node_bin 2>/dev/null || printf '%s' "aucun (TAGMAKER_NODE pour forcer)")
     cat <<EOF
 [DRY-RUN] install de TagMaker — aucune modification effectuée.
   Prérequis : distro + Node.js ≥ ${REQUIRED_NODE_MAJOR}.${REQUIRED_NODE_MINOR} (apt/dnf/yum)
+  Node détecté : $node_hint
   Utilisateur : $TAGMAKER_USER (dédié, non privilégié, home créé)
   Config : $(env_file_path) (~/.tagmaker.env, créée depuis .env.example si absent)
   Dossier : $TAGMAKER_DIR + build production (npm ci && npm run build, FR-003)

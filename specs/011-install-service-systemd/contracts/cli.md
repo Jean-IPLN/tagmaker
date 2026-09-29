@@ -34,14 +34,23 @@ OPTIONS
 Options aussi configurables par variables d'environnement à la même priorité
 que les flags : `TAGMAKER_DIR`, `TAGMAKER_ENV`, `TAGMAKER_USER`,
 `TAGMAKER_PORT`, `TAGMAKER_HOST`. **Précédence** : flag > variable > défaut.
+`TAGMAKER_NODE` force le binaire Node utilisé (sinon résolution automatique,
+cf. § Prérequis détectés).
 
 ## Prérequis détectés
 
 - `root`/droits admin (sinon erreur explicite avec la commande à lancer) ;
 - famille de distribution : **apt** (Debian/Ubuntu) ou **dnf/yum**
   (RHEL/Fedora/Rocky/RHEL-likes) ; toute autre famille → erreur explicite ;
-- **Node.js ≥ 20.9** et `npm` (installés via le gestionnaire de paquets si
-  absents) ; version insuffisante → erreur avec instruction de mise à niveau.
+- **Node.js ≥ 20.9** et `npm`. **Résolution** : `TAGMAKER_NODE` (si défini)
+  sinon le binaire le plus récent satisfaisant le plancher, cherché dans **tous
+  les répertoires du PATH** puis `/usr/local/bin` et `/usr/bin` — la version du
+  serveur (ex. Node 24 installé en  user-space via nvm) est toujours
+  préférée au paquet apt quand elle est atteignable ; le binaire résolu est
+  **propagé** au build (`npm ci && npm run build`) et à l'unité systemd.
+  Installation via le gestionnaire de paquets (apt/dnf/yum) seulement si aucun
+  Node suffisant n'est atteignable ; version insuffisante → erreur avec
+  instruction de mise à niveau.
 
 ## Comportement `install`
 

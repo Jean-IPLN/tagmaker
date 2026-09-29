@@ -16,6 +16,19 @@ tear() {
     [ -n "${SANDBOX:-}" ] && rm -rf "$SANDBOX"
 }
 
+# Fabrique un binaire `node` factice qui imprime la version demandée.
+make_fake_node() {
+    dir="$1"
+    ver="$2"
+    mkdir -p "$dir"
+    cat > "$dir/node" <<EOF
+#!/bin/sh
+printf 'v$ver\n'
+EOF
+    chmod +x "$dir/node"
+    printf '%s' "$dir/node"
+}
+
 run_tests() {
     new_sandbox
     stub_log="$SANDBOX/calls"
@@ -171,6 +184,41 @@ run_tests() {
     done
     expect_eq "T026: @types/node ^$root_major ∈ peer vitest ($vitest_peer)" "yes" "$vitest_major_ok"
     export PATH="$saved_path"
+
+    # --- T027 : résolution du binaire Node (bug node-ners) ---
+    new_sandbox
+    fake18=$(make_fake_node "$SANDBOX/node18/bin" "18.19.1")
+    fake20=$(make_fake_node "$SANDBOX/node20/bin" "20.19.2")
+    fake24=$(make_fake_node "$SANDBOX/node24/bin" "24.13.0")
+
+    if node_candidate_sufficient "$fake18"; then s18="ok"; else s18="no"; fi
+    expect_eq "T027: node 18 < plancher → insuffisant" "no" "$s18"
+    if node_candidate_sufficient "$fake20"; then s20="ok"; else s20="no"; fi
+    expect_eq "T027: node 20.19 ≥ 20.9 → suffisant" "ok" "$s20"
+    if node_candidate_sufficient "$fake24"; then s24="ok"; else s24="no"; fi
+    expect_eq "T027: node 24 → suffisant" "ok" "$s24"
+    if node_candidate_sufficient "$SANDBOX/absent/node"; then sa="ok"; else sa="no"; fi
+    expect_eq "T027: binaire absent → refusé" "no" "$sa"
+
+    res=$(PATH="$SANDBOX/node18/bin:$SANDBOX/node24/bin:/usr/bin:/bin" resolve_node_bin)
+    expect_eq "T027: PATH — le plus récent suffisant gagne" "$fake24" "$res"
+
+    TAGMAKER_NODE="$fake20"
+    res=$(resolve_node_bin)
+    expect_eq "T027: TAGMAKER_NODE prioritaire (même si 24 détectable)" "$fake20" "$res"
+    unset TAGMAKER_NODE
+
+    TAGMAKER_NODE="$SANDBOX/absent/node"
+    if resolve_node_bin >/dev/null 2>&1; then rc_override="ok"; else rc_override="echec"; fi
+    expect_eq "T027: TAGMAKER_NODE invalide → échec explicite" "echec" "$rc_override"
+    unset TAGMAKER_NODE
+
+    NODE_BIN="$fake24"
+    unit=$(unit_template '0.0.0.0' '3000' "$SANDBOX/app" "$SANDBOX/env" "tagmaker")
+    expect_contains "T027: ExecStart utilise le binaire résolu" "$fake24" "$unit"
+    unset NODE_BIN
+
+    tear
 
     export PATH="$OLD_PATH"
     tear
