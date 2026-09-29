@@ -417,6 +417,17 @@ node_open_service_access() {
     done
 }
 
+# Commande `su` du build npm, avec un PATH autonome — indépendant du PATH ambiant
+# de `su` (un compte système sans login peut avoir $PATH vide → `sh` introuvable
+# pour le lifecycle npm, `ENOENT spawn sh`).
+npm_build_command() {
+    appdir="$1"
+    node_dir="$2"
+    build_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    [ -n "$node_dir" ] && build_path="$node_dir:$build_path"
+    printf "%s" "PATH='$build_path'; export PATH SHELL=/bin/sh; npm --prefix '$appdir' ci --no-audit --no-fund && npm --prefix '$appdir' run build"
+}
+
 build_app() {
     appdir="$1"
     user="$2"
@@ -436,11 +447,7 @@ build_app() {
         }
         node_dir=$(dirname "$NODE_BIN")
     fi
-    if [ -n "$node_dir" ]; then
-        su -s /bin/sh "$user" -c "PATH='$node_dir:\$PATH'; export PATH; npm --prefix '$appdir' ci --no-audit --no-fund && npm --prefix '$appdir' run build"
-    else
-        su -s /bin/sh "$user" -c "npm --prefix '$appdir' ci --no-audit --no-fund && npm --prefix '$appdir' run build"
-    fi
+    su -s /bin/sh "$user" -c "$(npm_build_command "$appdir" "$node_dir")"
 }
 
 # ---------------------------------------------------------------------------

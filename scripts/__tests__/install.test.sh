@@ -269,6 +269,44 @@ run_tests() {
 
     tear
 
+    # --- T030 : PATH autonome du build (bug build-error) ---
+    # ENOENT `spawn sh` : npm ne trouve `sh` que si le PATH du `su` contient les
+    # répertoires système ; npm_build_command doit donc embarquer un PATH complet.
+    cmd=$(npm_build_command "/opt/tagmaker" "$(dirname "$fake_node")")
+    expect_contains "T030: PATH du build embarque node_dir" "$(dirname "$fake_node")" "$cmd"
+    for sdir in /usr/local/sbin /usr/local/bin /usr/sbin /usr/bin /sbin /bin; do
+        expect_contains "T030: PATH du build contient $sdir" "$sdir" "$cmd"
+    done
+    expect_contains "T030: appdir ciblé" "/opt/tagmaker" "$cmd"
+
+    case "$cmd" in *"export PATH SHELL=/bin/sh; npm"*) sh_ok="yes" ;; *) sh_ok="no" ;; esac
+    expect_eq "T030: SHELL=/bin/sh exportée pour le lifecycle npm" "yes" "$sh_ok"
+
+    # Contrôle négatif/positif du mécanisme, avec le vrai npm (hermétique) :
+    saved_path3="$PATH"
+    export PATH="$OLD_PATH"
+    mech="$SANDBOX/buildmech"
+    mkdir -p "$mech"
+    cat > "$mech/package.json" <<'EOF'
+{"name":"t","version":"0.0.1","scripts":{"x":"sh -c 'echo ok'"}}
+EOF
+    node_dir_real=$(dirname "$(command -v node)")
+
+    if env -i PATH="$node_dir_real" HOME="$mech" npm --prefix "$mech" run x >/dev/null 2>&1; then
+        neg="ok"
+    else
+        neg="ko"
+    fi
+    expect_eq "T030: PATH seul node → ENOENT spawn sh (contrôle négatif)" "ko" "$neg"
+
+    if env -i PATH="$node_dir_real:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" HOME="$mech" npm --prefix "$mech" run x >/dev/null 2>&1; then
+        pos="ok"
+    else
+        pos="ko"
+    fi
+    expect_eq "T030: PATH complet → lifecycle npm OK (contrôle positif)" "ok" "$pos"
+    export PATH="$saved_path3"
+
     export PATH="$OLD_PATH"
     tear
 
