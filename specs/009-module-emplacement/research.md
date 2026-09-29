@@ -17,6 +17,13 @@ concordantes.
   (hors ligne lisible), `f`=`Y`/`N` imprime la ligne lisible **sous** les
   barres (défaut `Y`), `g`=`Y`/`N` ligne au-dessus (défaut `N`),
   `e`=`Y`/`N` clé UCC (défaut `N`), `m`=mode d'encodage (défaut `N`).
+- **Police de la ligne lisible (précision 012)** : sur firmware **≤ 10.3.x**,
+  la ligne lisible native (`f=Y`) est rendue avec la **police « 0 » scalable à
+  défaut fixe (`^CF0`)**, et la commande `^CF` / `^A` appliquée **dans** le
+  champ (`^FD…^FS`) est sans effet : `^CFE` ne fonctionne **pas** pour la HRI
+  native. Solution Zebra recommandée : désactiver la HRI (`f=N`) et
+  **dessiner le texte soi-même** dans un champ dédié `^AEN` (font E = OCR-B),
+  centré sous les barres — méthode retenue (évol. 012).
 - **Clé de contrôle mod 103** : toujours calculée par l'imprimante, jamais
   fournie dans `^FD` — les 4 caractères saisis sont encodés tels quels.
 - **Sous-ensembles** : Code 128 A/B/C. En mode par défaut (`N`), la machine
@@ -46,17 +53,27 @@ concordantes.
 
 ## Décisions de conception
 
-### D1. Symbologie et commande ZPL
+### D1. Symbologie, commande ZPL et police OCR-B
 
 ```
-^BCN,{barHeight},Y,N,N    // Code 128, ligne lisible sous les barres,
-                          // pas de clé UCC, mod 103 auto (toujours actif)
-^FD{code}^FS              // 4 caractères saisis tels quels
+^BCN,{barHeight},N,N,N   // Code 128, ligne lisible native désactivée (f=N),
+                         // pas de clé UCC, mod 103 auto (toujours actif)
+^FO{xText},{yText}^AEN,{textHeight},{wCell}   // font E (OCR-B) dédiée
+^FD{code}^FS                                   // texte centré sous les barres
 ```
 - Native (`^BC`), pas de rendu manuel des motifs : KISS + exactitude garantie.
-- Ligne lisible `Y` : l'emplacement reste lisible par un humain (cohérent avec
-  EAN-13, exigence FR-009).
+- **HRI désactivée + champ texte dédié `^AEN`** : seule méthode fiable pour
+  garantir la police **OCR-B** (le firmware verrouille la police de la HRI
+  native sur `^CF0` — voir faits techniques). Validée sur Zebra ZD420 en
+  condition réelle (2026-09-29) : texte **non étiré**, occurrence **unique**,
+  **centré** sous les barres, avec **gap** et taille **proportionnels** au
+  format.
 - `e=N` et `m=N` : pas de variante UCC/EAN — le besoin est un Code 128 brut.
+- **Alignement hauteur de cellule** : `^AEN,h,w` demande une hauteur `h` mais
+  rend la police à la taille **matricielle réelle** (OCR-B ca. 28×15 dots ZD /
+  41×20 dots ZM/ZT, ratio l/h ≈ 0.46–0.49) ; `wCell = round(h × 0.48)` épouse
+  ce ratio pour éviter le texte « étiré ». OCR-B **non expansé** définit la
+  largeur maximale (norme) — c'est ce ratio que l'on reproduit.
 
 ### D2. Layout — centré, pleine échelle scannable (convention feature 008)
 
@@ -68,20 +85,30 @@ TOTAL_MODULES       = SYMBOL_MODULES + 20     // + zones de silence (10 + 10)
 moduleWidth         = clamp(floor(widthDots / TOTAL_MODULES), MIN, MAX)
 barsWidth           = SYMBOL_MODULES × moduleWidth
 x                   = round((widthDots − barsWidth) / 2)     // marges = zones de silence
+textHeight          = clamp(round(heightDots × 0.12), 25, 80)   // OCR-B proportionnel
+gap                 = round(textHeight × 0.15)                   // séparation barres/texte
 blockHeight         = round(0.9 × heightDots)                // convention 90 %
-barHeight           = max(blockHeight − TEXT_HEIGHT_DOTS, MIN_BAR_HEIGHT_DOTS)
+barHeight           = max(blockHeight − textHeight − gap, MIN_BAR_HEIGHT_DOTS)
 y                   = round((heightDots − blockHeight) / 2)
+yText               = y + barHeight + gap
+wCell               = round(textHeight × 0.48)            // ratio largeur/hauteur OCR-B
+advance             = round(textHeight × 0.52)            // resserrement inter-caractères
+xText               = x + round((barsWidth − len(code) × advance) / 2)   // centrage
 ```
 - **Bornes module** : X-dimension Code 128 ≈ 0.19–1.02 mm. À 203 dpi (1 dot =
   0.125 mm) : `MIN = 2 dots` (0.25 mm, sûr) et `MAX = 8 dots` (1.0 mm).
 - **Plancher barres** : prise recommandée min 0.25″ → `MIN_BAR_HEIGHT_DOTS =
-  51 dots` (6.38 mm). Les hauteurs réelles des formats (≥ 155 dots) le
+  51 dots` (6.38 mm). Les hauteurs réelles des formats (≥ 151 dots) le
   dépassent largement.
 - **Zone de silence** : garantie par construction — avec `moduleWidth =
   floor(widthDots/(SYMBOL+20))`, chaque marge vaut ≥ 10 modules.
-- Le calcul (module/position/bloc) étant désormais partagé avec EAN-13, il est
-  **extrait dans `lib/zpl/layout.ts`** (DRY) ; la sortie de `buildEan13Zpl`
-  reste strictement identique (aucune régression).
+- **Texte lisible** : le champ OCR-B dédié remplace la HRI native ; il est
+  centré sur la largeur du symbole (`xText`) et calé sous les barres (`yText`),
+  l'ensemble barres + gap + texte couvrant 90 % de la hauteur (convention 008).
+- Le calcul (module/position/bloc + texte) étant partagé avec EAN-13 sur la
+  partie symbole, il est **extrait dans `lib/zpl/layout.ts`** (DRY) ; la
+  sortie de `buildEan13Zpl` reste strictement identique (aucune régression —
+  `textGapDots` défaut à 0, ligne lisible native conservée).
 
 ### D3. Modes d'édition et structure du flux
 
@@ -152,9 +179,12 @@ y                   = round((heightDots − blockHeight) / 2)
 
 ## Risques résiduels (acceptés)
 
-- **`TEXT_HEIGHT_DOTS = 25`** reste une estimation (bande OCR-B) pour la
-  ligne lisible Code 128 ; même calibration que feature 008, centrage
-  conservé quelle que soit la hauteur réelle.
+- **Rendu OCR-B par format** : validé en réel sur 40×25 et 75×25 (Zebra
+  ZD420) ; 100×50 et 100×150 restent à confirmer physiquement (les invariants
+  géométriques garantissent le non-chevauchement par construction — tests).
+- **Largeur max du texte** : pour 4 caractères, `textWidth = 4 × advance` reste
+  très inférieur à `barsWidth` (52 vs 237 dots min) → pas de débordement sous
+  le symbole ; garde-fou automatique sur le format de référence 40×25.
 - **Renommage léger du `radio` shadcn** : le Switch (Base UI) doit être ajouté
   au kit local ; si le générateur shadcn produit une API différente de
   `select.tsx`, on suit l'API générée (contrat UI local).
@@ -164,6 +194,27 @@ y                   = round((heightDots − blockHeight) / 2)
 - **Impression physique réelle** (scan) non réalisable dans la CI : les tests
   vérifient la structure du flux et les invariants géométriques ; le contrôle
   au scanner est consigné au quickstart.
+
+## Validation matérielle (2026-09-29, Zebra ZD420 × 192.168.1.63)
+
+Diagnostic conduit en conditions réelles (envoi ZPL brut en TCP, media
+100×150 puis 40×25 / 75×25) :
+
+| Étiquette | Test | Résultat |
+|-----------|------|----------|
+| 1 | `^CFE,25,12` + `^BCN,155,Y,N,N` (HRI native) | **Échec** : police E **non** appliquée à la ligne lisible (firmware ≤ 10.x la verrouille sur `^CF0`) |
+| 2 | `^FO0,0^AEN,25,12^FD1A5B` (champ texte brut) | Font E (OCR-B) **présente** sur la machine |
+| 3 | `^BCN,155,N,N,N` + champ `^AEN` dédié | **Succès** : texte non étiré, centré, une occurrence |
+| 4 | Étiquette police (`support: text`) + test HRI | « **E-OCR-B** » listée (≠ « 0-scalable ») — la fonte existe |
+| 5 | Confirmation 40×25 (gap + centrage, méthode finale) | Validation **visuelle utilisateur** : OK |
+| 6 | Confirmation 75×25 (idem) | Validation **visuelle utilisateur** : OK |
+
+Conclusion : l'unicité du rendu n'est pas garantissable via la HRI native
+(`^CF`/`^A` sans effet dans le champ `^BC`) → méthode robuste **HRI off +
+champ `^AEN`** adoptée (D1). Artefacts corrigés en cours de route : texte
+« étiré » lié à `^AEN,h,h` (carré) et non au ratio OCR-B ; « centrage » et
+« pleine page » liés à des étiquettes de test, pas à l'algorithme
+(zone de silence Code 128 : 79/99 modules ≈ 79 % de la largeur max).
 
 ## Critères de non-régression
 

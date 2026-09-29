@@ -17,6 +17,7 @@ export interface BarcodeLayoutConfig {
   textHeightDots: number;
   targetHeightCoverage: number;
   minBarHeightDots: number;
+  textGapDots?: number;
 }
 
 export function clamp(value: number, min: number, max: number): number {
@@ -37,7 +38,7 @@ export function computeBarcodeLayout(
     config.heightDots * config.targetHeightCoverage
   );
   const barHeight = Math.max(
-    blockHeight - config.textHeightDots,
+    blockHeight - config.textHeightDots - (config.textGapDots ?? 0),
     config.minBarHeightDots
   );
   const y = Math.round((config.heightDots - blockHeight) / 2);

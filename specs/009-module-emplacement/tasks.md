@@ -446,34 +446,37 @@ Task: "T018 RED passthrough réglages → T019 GREEN location-form/route / T020"
   partout ; suite complète verte avant livraison
 - Branche dédiée `feature/009-module-emplacement` ; commit/push exige
   l'ordre explicite de l'utilisateur (jamais sans)
-- Risque d'étalonnage (research.md) : `MIN_BAR_HEIGHT_DOTS = 51` et
-  `TEXT_HEIGHT_DOTS = 25` pourraient être ajustés d'un ou deux dots au premier
-  rendu réel — changement localisé dans `lib/zpl/location.ts`, sans effet sur
-  le centrage (symétrique) ni sur EAN-13
+- Risque d'étalonnage (research.md) : `MIN_BAR_HEIGHT_DOTS = 51` et la
+  calibration du texte OCR-B (ratio 12 % / gap 15 %, évol. 012) pourraient
+  être ajustés d'un ou deux dots au rendu final — changement localisé dans
+  `lib/zpl/location.ts`, sans effet sur le centrage (symétrique) ni sur EAN-13
 
-## Bilan de validation
+## Bilan de validation (révision 012 — police OCR-B robuste, 2026-09-29)
 
-**Valeurs « générées par format » (quickstart, étape confrontée aux tests)**
-— vérifié automatiquement par `lib/zpl/__tests__/location.test.ts` (tableau
-FORMATS, 15 assertions) :
+**Valeurs « générées par format »** — vérifié automatiquement par
+`lib/zpl/__tests__/location.test.ts` (tableau FORMATS) ; **référence des
+tests : format 100×150 (principal) + 40×25 (garde-fou, défaut de l'app)** :
 
-| Format (mm) | module | barres (dots) | x | barHeight | y | blockHeight | couverture |
-|-------------|--------|---------------|----|----|--------|----|------------|
-| 40x25       | 3      | 237           | 42 | 155      | 10 | 180         | 90 %       |
-| 75x25       | 6      | 474           | 63 | 155      | 10 | 180         | 90 %       |
-| 100x50      | 8      | 632           | 84 | 335      | 20 | 360         | 90 %       |
-| 100x150     | 8      | 632           | 84 | 1055     | 60 | 1080        | 90 %       |
+| Format (mm) | module | barres | x | text | gap | barHeight | y | xText | yText | couverture |
+|-------------|--------|-------:|--:|-----:|----:|----------:|---:|------:|------:|------------|
+| 40x25       | 3      | 237    | 42 | 25   | 4   | 151       | 10 | 135   | 165   | 90 %       |
+| 75x25       | 6      | 474    | 63 | 25   | 4   | 151       | 10 | 274   | 165   | 90 %       |
+| 100x50      | 8      | 632    | 84 | 48   | 7   | 305       | 20 | 350   | 332   | 90 %       |
+| 100x150     | 8      | 632    | 84 | 80   | 12  | 988       | 60 | 316   | 1060  | 90 %       |
 
 Invariants verrouillés : zones de silence ≥ 10 modules/côté, `x + barsWidth ≤
 widthDots`, `blockHeight/heightDots = 0.9`, `barHeight ≥ 51`, clamp module
-2..8. Flux `^BCN,h,Y,N,N` sans rotation, `^PQ` en single uniquement.
+2..8, `gap > 0`, texte ni plus large que le symbole ni coupé en bas
+(`yText + textHeight = y + blockHeight`). Flux `^BCN,h,N,N,N` + champ
+`^FO{xText},{yText}^AEN,{textHeight},{wCell}` (font E = OCR-B) sans rotation,
+`^PQ` en single uniquement, **aucun** `^CF`.
 
-**Impression réelle / scan : non réalisé** — aucune imprimante connectée.
-Validation physique (centrage visuel, marges 10 modules, scannabilité ligne
-lisible + codes distincts en plage, ordre `0-9 → A-Z`) **en attente**, à faire
-via quickstart.md étape 5. Risque d'étalonnage résiduel documenté dans
-`research.md` (`MIN_BAR_HEIGHT_DOTS = 51`, `TEXT_HEIGHT_DOTS = 25`), ajustable
-uniquement dans `lib/zpl/location.ts` sans effet EAN-13 (REF tested).
+**Impression réelle / scan (évol. 012)** : la **HRI native est désactivée** et
+le texte OCR-B rendu dans un champ dédié (cause : le firmware ≤ 10.x verrouille
+la police de la HRI native sur `^CF0` — `^CFE` sans effet, diagnostiqué en
+Zebra ZD420 réelle). Rendu **confirmé visuellement** sur 40×25 et 75×25
+(texte non étiré, unique, centré, gap respecté). Restants physiques **en
+attente** : rendu 100×50/100×150 + scan réel (quickstart étape 5).
 
 ## Évolution post-009 — calcul de plage en « boîte » (feature 010)
 

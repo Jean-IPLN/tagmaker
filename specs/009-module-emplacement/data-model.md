@@ -82,19 +82,44 @@ Exemples :
 | `TOTAL_MODULES` | `SYMBOL_MODULES + 20` (= 99) | largeur de référence pixel |
 | `MIN_MODULE_WIDTH` | 2 dots | X min Code 128 (0.25 mm @203 dpi) |
 | `MAX_MODULE_WIDTH` | 8 dots | X max Code 128 (1.0 mm) |
-| `TEXT_HEIGHT_DOTS` | 25 | bande ligne lisible (~3.08 mm) |
-| `TARGET_HEIGHT_COVERAGE` | 0.9 | bloc = 90 % de la hauteur (convention 008) |
+| `TARGET_HEIGHT_COVERAGE` | 0.9 | bloc (barres + texte + gap) = 90 % de la hauteur (convention 008) |
 | `MIN_BAR_HEIGHT_DOTS` | 51 | plancher scannabilité code-barres (0.25″) |
+| `TEXT_HEIGHT_RATIO` | 0.12 | hauteur du texte OCR-B = 12 % de `heightDots` |
+| `TEXT_HEIGHT_MIN` | 25 dots | hauteur texte minimale (~3.08 mm, matrice OCR-B ZD) |
+| `TEXT_HEIGHT_MAX` | 80 dots | hauteur texte maximale |
+| `TEXT_GAP_RATIO` | 0.15 | gap barres→texte = 15 % de `textHeight` |
+| `OCR_B_WIDTH_RATIO` | 0.48 | `wCell` (largeur de cellule `^AEN` OCR-B, ratio l/h) |
+| `CHAR_ADVANCE_RATIO` | 0.52 | resserrement inter-caractères (avance) OCR-B |
+
+> Les constantes hauteur/largeur/gap remplacent l'ancienne
+> `TEXT_HEIGHT_DOTS = 25` fixe (évol. 012, révision 2026-09-29) : le texte
+> devient **proportionnel au format**, avec un **gap** entre les barres et le
+> texte, la ligne lisible native étant désactivée.
 
 ## Invariants de calcul (vérifiés par test sur les 4 formats)
+
+Layout commun (avec `computeBarcodeLayout`, paramètre `textGapDots`) :
 
 ```
 moduleWidth = clamp(floor(widthDots / TOTAL_MODULES), MIN, MAX)
 barsWidth   = SYMBOL_MODULES × moduleWidth
 x           = round((widthDots − barsWidth) / 2)
 blockHeight = round(0.9 × heightDots)
-barHeight   = max(blockHeight − TEXT_HEIGHT_DOTS, MIN_BAR_HEIGHT_DOTS)
+barHeight   = max(blockHeight − textHeight − textGapDots, MIN_BAR_HEIGHT_DOTS)
 y           = round((heightDots − blockHeight) / 2)
+```
+
+Champ texte dédié OCR-B (module Emplacement uniquement) :
+
+```
+textHeight = clamp(round(heightDots × TEXT_HEIGHT_RATIO), TEXT_HEIGHT_MIN, TEXT_HEIGHT_MAX)
+gap        = round(textHeight × TEXT_GAP_RATIO)
+barHeight  = max(blockHeight − textHeight − gap, MIN_BAR_HEIGHT_DOTS)   // gap ≠ 0
+yText      = y + barHeight + gap
+wCell      = round(textHeight × OCR_B_WIDTH_RATIO)
+advance    = round(textHeight × CHAR_ADVANCE_RATIO)
+textWidth  = code.length × advance
+xText      = x + round((barsWidth − textWidth) / 2)
 ```
 
 1. `x ≥ 10 × moduleWidth` **et** `widthDots − x − barsWidth ≥ 10 × moduleWidth`
@@ -102,7 +127,12 @@ y           = round((heightDots − blockHeight) / 2)
 2. `x + barsWidth ≤ widthDots` → symbole jamais coupé ;
 3. `barHeight ≥ 51` → scannable ;
 4. `blockHeight / heightDots = 0.9` → pleine échelle, marges haut/bas = 5 % ;
-5. `blockHeight ≤ heightDots` → texte lisible jamais coupé.
+5. `yText + textHeight ≤ y + blockHeight` → le texte reste dans le bloc, jamais
+   coupé en bas ; `gap > 0` → séparation barres/texte ;
+6. `textWidth ≤ barsWidth` (+ 2 × zone) → le texte rentre sous le symbole
+   (vérifié par test sur les 4 formats : largeur texte < largeur barres) ;
+7. `barHeight + textHeight + gap = blockHeight` (hors plancher) → le bloc
+   barres + texte + gap couvre exactement les 90 %.
 
 ## Flux de données (résolution serveur → ZPL)
 

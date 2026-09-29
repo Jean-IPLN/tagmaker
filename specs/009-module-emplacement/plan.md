@@ -86,6 +86,16 @@ branche dédiée `feature/009-module-emplacement` avant implémentation.
 > feature 010 (`1A10` → `1B10` valide, ordre par axe, taille = produit) — voir
 > l'addendum du tasks.md et `specs/010-multi-range-print/`.
 
+> **Évolution 012 (patch/012-police-ocrb-emplacement, 2026-09-29)** : la police
+> OCR-B du texte lisible Code 128 est garantie par **HRI native désactivée**
+> (`^BCN,h,N,N,N`) + **champ texte dédié** `^FO{xText},{yText}^AEN,{textHeight},
+> {wCell}` centré sous les barres, avec **gap** et **textHeight par
+> proportionnels** au format. Cause : le firmware ≤ 10.x verrouille la police
+> de la HRI native (`^CFE` sans effet). `lib/zpl/layout.ts` gagne un paramètre
+> optionnel `textGapDots` (défaut 0) → `buildEan13Zpl` **inchangé**. Réf.
+> `contracts/zpl.md` (révision 012), `research.md` § Validation matérielle,
+> `data-model.md` § constantes, bilan dans `tasks.md`.
+
 ## Project Structure
 
 ### Documentation (this feature)

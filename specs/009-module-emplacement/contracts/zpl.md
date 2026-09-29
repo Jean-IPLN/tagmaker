@@ -1,132 +1,124 @@
-# Contrat ZPL — Étiquette Emplacement Code 128 centrée (Feature 009)
+# Contrat ZPL — buildLocationZpl (Feature 009, évol. 012)
 
-Génération du flux ZPL envoyé à l'imprimante (203 dpi = 8 dots/mm). Rendu du
-code-barres : commande native **`^BC` (Code 128)**, symbole **centré en
-largeur et en hauteur** (barres + ligne lisible sous les barres) et
-**dimensionné au maximum scannable**, en reprenant la convention de la feature
-008. Référence : [research.md](../research.md), valeurs du layout :
-[data-model.md](../data-model.md).
+Révision 012 (2026-09-29) : **police OCR-B garantie** par désactivation de la
+ligne lisible native (`f=N`) + champ texte dédié `^AEN` centré sous les barres.
+Remplace l'approche `^CFE,25,12` (HRI native, firmware <= 10.x verrouille la
+police de la ligne lisible : impossible d'en changer la police par `^CF`).
 
-## Données d'entrée
+## Dimensions et résolution
 
-| Entrée | Source | Usage |
-|--------|--------|-------|
-| `widthDots`, `heightDots` | `ZPL_PAPER_SIZES` (format sélectionné) via `resolveDimensions` | géométrie du layout |
-| `codes: string[]` | expansion de plage ou `[code]` (mode single) | un `^FD` par code |
-| `quantity` | requête validée (mode single seulement, 1…1000) | `^PQ` |
+- Étiquettes **203 dpi** (`1 dot = 0.125 mm`), formats du répertoire papier :
+  `40x25`, `75x25`, `100x50`, `100x150` (millimètres).
+- `widthDots`, `heightDots` proviennent de `resolveDimensions` (module 006) et
+  sont transmis tels quels à la fonction pure.
 
-## Paramètres de calcul (constantes Code 128)
+## Constantes
 
 | Constante | Valeur | Sens |
 |-----------|-------:|------|
-| `CHAR_MODULES` | 11 | largeur d'un caractère de données |
-| `CODE_128_BASE_MODULES` | 35 | départ (11) + clé mod 103 (11) + arrêt (13) |
-| `SYMBOL_MODULES` | `11×4 + 35 = 79` | largeur du symbole (code de 4 caractères) |
+| `CHAR_MODULES` | 11 | largeur d'un caractère de données (3 barres + 3 espaces) |
+| `SYMBOL_MODULES` | `11 × len(code) + 35` (= **79** pour 4 caractères) | largeur du symbole (départ 11 + clé mod 103 11 + arrêt 13) |
+| `TOTAL_MODULES` | `SYMBOL_MODULES + 20` (= **99**) | + zones de silence (10 + 10) |
 | `QUIET_MODULES` | 20 | zones de silence (10 + 10) |
-| `TOTAL_MODULES` | `79 + 20 = 99` | largeur de référence du clamping |
-| `MIN_MODULE_WIDTH` | 2 dots | X min Code 128 (0.19 mm) |
-| `MAX_MODULE_WIDTH` | 8 dots | X max Code 128 (1.016 mm) |
-| `TEXT_HEIGHT_DOTS` | 25 | bande ligne lisible (~3.08 mm) |
-| `TARGET_HEIGHT_COVERAGE` | 0.9 | bloc = 90 % de la hauteur |
+| `MIN_MODULE_WIDTH` | 2 dots | X min Code 128 (0.25 mm @203 dpi) |
+| `MAX_MODULE_WIDTH` | 8 dots | X max Code 128 (1.0 mm) |
+| `TARGET_HEIGHT_COVERAGE` | `0.9` | bloc (barres + texte + gap) = 90 % de `heightDots` |
 | `MIN_BAR_HEIGHT_DOTS` | 51 | plancher scannabilité (0.25″) |
+| `TEXT_HEIGHT_RATIO` | `0.12` | hauteur texte = 12 % de `heightDots` |
+| `TEXT_HEIGHT_MIN` | 25 dots | hauteur texte minimale (~3.08 mm) |
+| `TEXT_HEIGHT_MAX` | 80 dots | hauteur texte maximale |
+| `TEXT_GAP_RATIO` | `0.15` | gap barres→texte = 15 % de `textHeight` |
+| `OCR_B_WIDTH_RATIO` | `0.48` | `wCell` (largeur de cellule ^AEN OCR-B, ratio l/h) |
+| `CHAR_ADVANCE_RATIO` | `0.52` | resserrement inter-caractères (avance) OCR-B + hachures |
 
-## Flux généré — mode Un seul (une étiquette ×N copies)
+> Les constantes texte correspondent aux matrices OCR-B Zebra (28×15 dots ZD /
+> 41×20 dots ZM/ZT, ratio l/h ≈ 0.46–0.49). Voir `research.md` § Validation
+> terrain.
 
-```zpl
+## Calculs de position (priorité identique au module EAN-13, feature 008)
+
+```
+moduleWidth = clamp(floor(widthDots / TOTAL_MODULES), MIN_MODULE_WIDTH, MAX_MODULE_WIDTH)
+barsWidth   = SYMBOL_MODULES × moduleWidth
+x           = round((widthDots − barsWidth) / 2)
+
+textHeight  = clamp(round(heightDots × TEXT_HEIGHT_RATIO), TEXT_HEIGHT_MIN, TEXT_HEIGHT_MAX)
+gap         = round(textHeight × TEXT_GAP_RATIO)
+blockHeight = round(TARGET_HEIGHT_COVERAGE × heightDots)
+barHeight   = max(blockHeight − textHeight − gap, MIN_BAR_HEIGHT_DOTS)
+y           = round((heightDots − blockHeight) / 2)
+yText       = y + barHeight + gap
+wCell       = round(textHeight × OCR_B_WIDTH_RATIO)
+advance     = round(textHeight × CHAR_ADVANCE_RATIO)
+textWidth   = code.length × advance
+xText       = x + round((barsWidth − textWidth) / 2)
+```
+
+## Flux ZPL — mode « Un seul » (quantity ≥ 1)
+
+```
 ^XA
-^PW320^LL200            ; largeur/hauteur étiquette (320 × 200 dots pour 40×25 mm)
-^LH0,0                  ; origine en haut à gauche
-^BY3,3,155              ; module X=3 dots, ratio 3, hauteur barres 155 dots
-^FO42,10^BCN,155,Y,N,N  ; centré (x=42, y=10), Code 128, ligne lisible sous les barres
-^FD1A5B^FS              ; 4 caractères saisis tels quels (imprimante calcule mod 103)
-^PQ5                    ; nombre de copies = quantité demandée
+^CI28
+^PW{widthDots}^LL{heightDots}
+^LH0,0
+^FO{x},{y}^BCN,{barHeight},N,N,N
+^FD{code}^FS
+^FO{xText},{yText}^AEN,{textHeight},{wCell}^FD{code}^FS
+^PQ{quantity}
 ^XZ
 ```
 
-Mapping `^BCo,h,f,g,e,m` : `o=N` (normal), `h=barHeight`, `f=Y` (ligne lisible
-sous les barres), `g=N` (pas au-dessus), `e=N` (pas de clé UCC), `m` omis
-(défaut `N`, sous-ensemble optimal choisi par la machine).
+- `^BCN,h,N,N,N` : Code 128, **ligne lisible native désactivée** (`f=N` — pas
+  de HRI), pas de ligne au-dessus (`g=N`), pas de clé UCC (`e=N`), mode
+  d'encodage auto (`m=N`).
+- Champ texte dédié : `^AEN` (font E = OCR-B), hauteur `textHeight`, largeur de
+  cellule `wCell`, `^FD{code}` centré à `xText` (`+` et `-` sont proscrits par
+  la nomenclature).
+- `wCell` peut déborder de la hauteur : seule la **baseline** guide le rendu
+  (`^AEN,h,w` — hauteur réellement rendue ~ `h × 0.6`), aucun clip possible.
 
-## Flux généré — mode Plage (un bloc par code distinct)
+## Flux ZPL — mode « Plage » (1 bloc `^XA…^XZ` par code)
 
-`^PQ` répète la **même** étiquette : il est donc inutilisable pour une plage
-(codes différents). Le flux concatène un bloc par code, dans l'ordre croissant
-de la plage, en **un seul job** :
-
-```zpl
+```
 ^XA
-^PW320^LL200
+^CI28
+^PW{widthDots}^LL{heightDots}
 ^LH0,0
-^BY3,3,155
-^FO42,10^BCN,155,Y,N,N
+^FO{x},{y}^BCN,{barHeight},N,N,N
 ^FD1A10^FS
+^FO{xText},{yText}^AEN,{textHeight},{wCell}^FD1A10^FS
 ^XZ
 ^XA
-^PW320^LL200
-^LH0,0
-^BY3,3,155
-^FO42,10^BCN,155,Y,N,N
-^FD1A11^FS
+… (un bloc identique par code, sans ^PQ)
 ^XZ
-; … un bloc suivant par code de la plage (taille ≤ 1000)
 ```
 
-Pas de `^PQ` explicite (valeur par défaut 1) — chaque bloc est imprimé une fois.
+La position `xText`/`yText` est **identique pour tous les blocs** (même
+largeur de symbole) ; seul l'`^FD` change.
 
-### Calcul des valeurs (applicable à tout format)
+## Règles de non-régression (contrats existants)
 
-```text
-moduleWidth = clamp(floor(widthDots / 99), 2, 8)
-barsWidth   = 79 × moduleWidth
-x           = round((widthDots − barsWidth) / 2)      → marge gauche ≈ droite ≥ 10 modules
-blockHeight = round(0.9 × heightDots)                 → bloc = 90 % de la hauteur
-barHeight   = max(blockHeight − 25, 51)
-y           = round((heightDots − blockHeight) / 2)   → marge haute ≈ basse (= 5 %)
-```
+- `^BE` EAN-13 (feature 008) : **inchangé** — `buildEan13Zpl` ne passe aucune
+  ligne de gap (`textGapDots` défaut 0) et conserve sa ligne lisible native.
+- `^PW`/`^LL`/`^LH0,0`/`^PQ` (mode single) : conforme aux contrats 006/007.
 
-## Valeurs générées par format (code de 4 caractères)
+## Exemples signifiants
 
-| Format | Dots | module | barres (79×m) | `x` | zones de silence | barHeight | `y` | bloc | couverture H |
-|--------|------|-------:|--------------:|----:|------------------|----------:|----:|-----:|-------------:|
-| `40x25` | 320×200 | 3 | 237 | 42 | 42 / 41 | 155 | 10 | 180 | 90.0 % |
-| `75x25` | 600×200 | 6 | 474 | 63 | 63 / 63 | 155 | 10 | 180 | 90.0 % |
-| `100x50` | 800×400 | 8 | 632 | 84 | 84 / 84 | 335 | 20 | 360 | 90.0 % |
-| `100x150` | 800×1200 | 8 | 632 | 84 | 84 / 84 | 1055 | 60 | 1080 | 90.0 % |
+- `codes: ["1A5B"], quantity: 5, 40×25` : contenance `^PW320^LL200`,
+  `^FO42,10^BCN,151,N,N,N`, `^FO135,165^AEN,25,12`, `^PQ5`.
+- `codes: ["1A10","1A11"], 40×25` : 2 blocs `^XA…^XZ`, aucun `^PQ`, chaque
+  bloc porte `^FO42,10^BCN,151,N,N,N` + `^FO135,165^AEN,25,12^FD1A10/1A11^FS`.
 
-Formats issus de `ZPL_PAPER_SIZES` dans `.env` : `40x25, 75x25, 100x50,
-100x150`. Zone de silence requise : `10 × module` (30 / 60 / 80 / 80 dots) —
-respectée sur chaque format (invariant 1 du data-model).
+## Données attendues par format de papier (code 4 caractères)
 
-## Règles
+| Format | `^BY` | `barHeight` | `^BCN` | `textHeight` | gap | `xText` | `yText` | `^AEN` |
+|--------|------:|------------:|:-------|-------------:|----:|--------:|--------:|:-------|
+| `40x25` (320×200) | `^BY3,3,151` | 151 | `^FO42,10^BCN,151,N,N,N` | 25 | 4 | 135 | 165 | `^FO135,165^AEN,25,12` |
+| `75x25` (600×200) | `^BY6,3,151` | 151 | `^FO63,10^BCN,151,N,N,N` | 25 | 4 | 274 | 165 | `^FO274,165^AEN,25,12` |
+| `100x50` (800×400) | `^BY8,3,305` | 305 | `^FO84,20^BCN,305,N,N,N` | 48 | 7 | 350 | 332 | `^FO350,332^AEN,48,23` |
+| `100x150` (800×1200) | `^BY8,3,988` | 988 | `^FO84,60^BCN,988,N,N,N` | 80 | 12 | 316 | 1060 | `^FO316,1060^AEN,80,38` |
 
-- Toute étiquette : `^XA` … `^XZ`, une par bloc.
-- `^BYw,3,h` et `^BCN,h,Y,N,N` portent le même module `w` et la même hauteur `h`.
-- `^FD` = **4 caractères** du code (pas de transformation — `#` et `D` transmis
-  tels quels) ; la clé mod 103 est toujours calculée par l'imprimante.
-- Ligne lisible `Y` sous les barres (le bloc « barres + texte » dépasse `h` de
-  ~`TEXT_HEIGHT_DOTS`, même géométrie que `^BE`).
-- Zones de silence ≥ 10 modules de chaque côté : garanties par construction
-  (`x ≥ 10×module` et `widthDots − x − barsWidth ≥ 10×module`), vérifiées par
-  test sur chaque format.
-- Le flux est construit dans `lib/zpl/location.ts` (fonction pure, testée,
-  sans I/O) — `buildLocationZpl({ codes, quantity?, widthDots, heightDots })`.
-  Les calculs de géométrie partagés avec EAN-13 sont extraits dans
-  `lib/zpl/layout.ts` (DRY) ; `buildEan13Zpl` reste strictement identique.
-
-## Cas limites
-
-- **Formats larges (75×25, 100×50, 100×150)** : module plafonné à 8 dots
-  (X max Code 128 1.0 mm) — symbole centré avec marges larges (scannabilité
-  avant remplissage maximal).
-- **Format très haut (100×150)** : barres de 1055 dots (~132 mm) — hauteur non
-  plafonnée (seul le plancher 51 dots s'applique).
-- **Petit format (40×25)** : module 3 dots (0.375 mm) ; barres 155 dots ≥ 51.
-- **Plage maximale** : 1000 blocs × (~140 octets) ≈ 140 Ko — envoi unique,
-  sous le timeout 10 s (borne métier 006 inchangée).
-- **Ligne lisible plus large que le symbole** : 4 caractères à la police
-  défaut (~10 dots/char) ≪ 237 dots — aucun débordement de `x`.
-- **Rotation** : toujours `^BCN` (non roté) — pas de besoin d'orientation.
-- **Arrondi** : `x` arrondi à l'entier ; l'écart gauche/droite ≤ 1 dot
-  (tolérance SC-001/002).
-- **Sans imprimante** : `sendToPrinter` échoue → `503` `PRINTER_UNAVAILABLE`
-  (validation Zod déjà passée) — inchangé.
+> Vérification sur le terrain (Zebra ZD420, 2026-09-29) : rendu validé sur
+> 40×25 et 75×25 (texte non étiré, une seule occurrence, centré). Référence
+> des tests automatiques : **formats 100×150 (principal) et 40×25 (garde-fou,
+> défaut de l'application)**.
