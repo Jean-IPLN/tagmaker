@@ -242,6 +242,31 @@ run_tests() {
 
     export HOME="$saved_home"
 
+    # --- T029 : ouverture ciblée o+x vers un Node user-space (bug node-nvm-access) ---
+    new_sandbox
+    fake_home="$SANDBOX/home/admin"
+    fake_node=$(make_fake_node "$fake_home/.nvm/versions/node/v24.18.0/bin" "24.18.0")
+    chmod 700 "$fake_home"
+    chmod 751 "$fake_home/.nvm"
+    nvm_before="$(stat -c '%a' "$fake_home/.nvm")"
+    bin_before="$(stat -c '%a' "$(dirname "$fake_node")")"
+
+    node_open_service_access "$fake_node" "$fake_home"
+
+    expect_eq "T029: home fermé → ouvert en 701" "701" "$(stat -c '%a' "$fake_home")"
+    expect_eq "T029: .nvm déjà o+x → inchangé" "$nvm_before" "$(stat -c '%a' "$fake_home/.nvm")"
+    expect_eq "T029: bin déjà o+x → inchangé" "$bin_before" "$(stat -c '%a' "$(dirname "$fake_node")")"
+
+    mid_dir="$fake_home/.nvm/versions/node"
+    chmod 711 "$mid_dir"
+    node_open_service_access "$fake_node" "$fake_home"
+    expect_eq "T029: dossier 711 préservé (on n'ajoute que x)" "711" "$(stat -c '%a' "$mid_dir")"
+
+    expect_eq "T029: ancre home d'un chemin /home réel" "/home/ipln" "$(node_home_anchor '/home/ipln/.nvm/versions/node/v24.18.0/bin/node')"
+
+    local_bin=$(make_fake_node "$SANDBOX/usr/local/bin" "24.0.0")
+    expect_eq "T029: hors /home → aucune ancre (gate build_app)" "" "$(node_home_anchor "$local_bin")"
+
     tear
 
     export PATH="$OLD_PATH"

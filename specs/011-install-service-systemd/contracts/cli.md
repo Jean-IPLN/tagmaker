@@ -57,10 +57,15 @@ cf. § Prérequis détectés).
   Node suffisant n'est atteignable ; version insuffisante → erreur avec
   instruction de mise à niveau.
   **Accessibilité du service** : le binaire résolu doit être exécutable par le
-  user `TAGMAKER_USER` (le check `test -x` est fait au build) — un Node logé
-  dans un home fermé (nvm, droits 700) déclenche une erreur explicite invitant
-  à installer un Node accessible système (NodeSource) ou à forcer
-  `TAGMAKER_NODE`.
+  user `TAGMAKER_USER`. Si c'est un Node user-space logé sous `/home` (nvm/
+  volta/fnm) et que la chaîne d'accès n'est pas traversable (ex. home 700),
+  le script ouvre **parcimonieusement** l'accès : `chmod o+x` (traverse, jamais
+  de lecture/écriture pour autrui, aucun bit retiré) appliqué à chaque
+  répertoire concerné et **loggé**, du home jusqu'au dossier du binaire —
+  uniquement dans le home concerné. Le check `test -x` est ensuite rejoué au
+  build ; en cas d'échec persistant (home verrouillé, NFS/ACL...) une erreur
+  explicite invite à installer un Node accessible système (NodeSource) ou à
+  forcer `TAGMAKER_NODE`.
 
 ## Comportement `install`
 

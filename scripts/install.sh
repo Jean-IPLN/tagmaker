@@ -373,17 +373,64 @@ _npm_build() {
     npm --prefix "$appdir" run build
 }
 
+# ---------------------------------------------------------------------------
+# Ouverture ciblée de l'accès service vers un Node user-space (nvm/volta/fnm) :
+# ajoute le bit o+x (traverse) à chaque répertoire de la chaîne, du home jusqu'au
+# dossier du binaire. Ne fait jamais + qu'ajouter x, et ne sort jamais du home.
+# ---------------------------------------------------------------------------
+# Ancêtre home d'un binaire (structural, ex. /home/iptn/.nvm/... → /home/iptn).
+node_home_anchor() {
+    bin="$1"
+    case "$bin" in /home/*/*) ;;
+        *) return 0 ;;
+    esac
+    u="${bin#/home/}"
+    u="${u%%/*}"
+    printf '%s' "/home/$u"
+}
+
+# Ouverture ciblée de l'accès service vers un Node user-space (nvm/volta/fnm) :
+# ajoute le bit o+x (traverse) à chaque répertoire strictement compris entre
+# l'ancêtre home et le dossier du binaire. Ne fait jamais + qu'ajouter x, et ne
+# sort jamais de l'ancre.
+node_open_service_access() {
+    bin="$1"
+    anchor="$2"
+    [ -n "$anchor" ] || return 1
+
+    dirs="$anchor"
+    p=$(dirname "$bin")
+    while [ "$p" != "/" ] && [ "$p" != "$anchor" ]; do
+        dirs="$p $dirs"
+        p=$(dirname "$p")
+    done
+
+    for d in $dirs; do
+        case "$d" in "$anchor"|"$anchor"/*) ;; *) continue ;; esac
+        others=$(stat -c '%a' "$d" 2>/dev/null) || continue
+        others="${others#"${others%?}"}"
+        case "$others" in 1|3|5|7) ;; *)
+            chmod o+x "$d"
+            log "Accès service ouvert : chmod o+x $d"
+            ;;
+        esac
+    done
+}
+
 build_app() {
     appdir="$1"
     user="$2"
     log "Build production (npm ci && npm run build, en tant que ${user})..."
-    # Binaire Node résolu mais hors de portée du user service (ex. home nvm 700) :
-# échec explicite plutôt qu'un build/service qui ne démarre jamais.
     chown -R "$user:$user" "$appdir"
     node_dir=""
     if [ -n "${NODE_BIN:-}" ]; then
+        anchor=$(node_home_anchor "$NODE_BIN")
+        [ -n "$anchor" ] && node_open_service_access "$NODE_BIN" "$anchor"
+        # Binaire Node résolu mais toujours hors de portée du user service
+        # (ex. home verrouillé/nfs) : échec explicite plutôt qu'un service
+        # qui ne démarre jamais.
         su -s /bin/sh "$user" -c "test -x '$NODE_BIN'" || {
-            printf 'ERROR: Node résolu (%s) inaccessible au user %s. Installez un Node accessible système (ex. NodeSource dans /usr/local) ou forcez TAGMAKER_NODE.\n' \
+            printf 'ERROR: Node résolu (%s) inaccessible au user %s même après ouverture des accès. Installez un Node accessible système (ex. NodeSource dans /usr/local) ou forcez TAGMAKER_NODE.\n' \
                 "$NODE_BIN" "$user" >&2
             return 1
         }
