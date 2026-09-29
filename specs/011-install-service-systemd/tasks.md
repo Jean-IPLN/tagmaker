@@ -44,7 +44,7 @@ l'implémentation), comme pour les features 009/010.
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
 - [X] T003 Create the POSIX test harness `scripts/__tests__/run-install-tests.sh`: sources `scripts/install.sh` (fonctions) + `scripts/__tests__/install.test.sh`, exécute les assertions, sort en erreur au premier échec, affiche `PASS/FAIL` par test (utilisation dans la CI, constitution V)
-- [X] T004 [P] Create `scripts/install.sh` skeleton: shebang `#!/bin/sh`, `set -eu`, helpers de sortie (`ERROR:`/`WARN:` prefixes, `log`), résolution des défauts `TAGMAKER_DIR=/opt/tagmaker`, `TAGMAKER_ENV=/etc/tagmaker/tagmaker.env`, `TAGMAKER_USER=tagmaker`, `TAGMAKER_PORT=3000`, `TAGMAKER_HOST=0.0.0.0` per `contracts/cli.md`
+- [X] T004 [P] Create `scripts/install.sh` skeleton: shebang `#!/bin/sh`, `set -eu`, helpers de sortie (`ERROR:`/`WARN:` prefixes, `log`), résolution des défauts `TAGMAKER_DIR=/opt/tagmaker`, `TAGMAKER_ENV=~/.tagmaker.env (default, home de l'utilisateur dédié)`, `TAGMAKER_USER=tagmaker`, `TAGMAKER_PORT=3000`, `TAGMAKER_HOST=0.0.0.0` per `contracts/cli.md`
 - [X] T005 [P] Implement the argument parser in `scripts/install.sh` (flags/short `-d -e -u -p -h -U -q`, longue `--dry-run --keep-config --help`, override env `TAGMAKER_*`, précédence flag > env > défaut, `--uninstall`/`-U` désactive le mode install, combinaisons d'usage → exit 2, codes 0/1/2) per `contracts/cli.md`
 - [X] T006 [P] Implement distro detection + prereq check in `scripts/install.sh` (famille **apt** Debian/Ubuntu ou **dnf/yum** RHEL-like sinon `ERROR:` explicite ; **Node ≥ 20.9** et npm — install via gestionnaire de paquets si absents, sinon instruction de mise à niveau) per `contracts/cli.md` FR-001, research D2/D3
 
@@ -63,7 +63,7 @@ l'implémentation), comme pour les features 009/010.
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
 - [X] T007 [P] [US1] Test création + immutabilité de la configuration in `scripts/__tests__/install.test.sh` : fixture depuis `fixtures/env.example`, fichier **jamais écrasé** à la ré-exécution, contient `TAGMAKER_HOST/TAGMAKER_PORT`, droits `0600` — contraintes verbatim de `contracts/config.md`
-- [X] T008 [P] [US1] Test des champs de l'unité systemd générée in `scripts/__tests__/install.test.sh` : `Name=tagmaker.service`, `User=tagmaker/Group=tagmaker`, `WorkingDirectory=/opt/tagmaker`, `EnvironmentFile=/etc/tagmaker/tagmaker.env`, `ExecStart` avec `next start -H <host> -p <port>`, `Restart=on-failure`, `RestartSec=3`, `WantedBy=multi-user.target` — contrat verbatim `contracts/systemd.md`
+- [X] T008 [P] [US1] Test des champs de l'unité systemd générée in `scripts/__tests__/install.test.sh` : `Name=tagmaker.service`, `User=tagmaker/Group=tagmaker`, `WorkingDirectory=/opt/tagmaker`, `EnvironmentFile=%h/.tagmaker.env`, `ExecStart` avec `next start -H <host> -p <port>`, `Restart=on-failure`, `RestartSec=3`, `WantedBy=multi-user.target` — contrat verbatim `contracts/systemd.md`
 - [X] T009 [P] [US1] Test build-avant-activation + `--dry-run` sans effet de bord in `scripts/__tests__/install.test.sh` : build échoué → aucun `enable/start`, dossier existant intact, sortie `ERROR:` (FR-003) — stubs système via `PATH` `fixtures/bin/`
 
 ### Implementation for User Story 1
@@ -124,7 +124,7 @@ l'implémentation), comme pour les features 009/010.
 ### Tests for User Story 4 (obligatoires — constitution V) ⚠️
 
 - [X] T020 [P] [US4] Test de parsing des modes de désinstallation in `scripts/__tests__/install.test.sh` : `uninstall` et `--uninstall`/`-U` équivalents ; `uninstall`+`--uninstall` → même mode sans erreur ; `--keep-config` hors mode désinstallation → exit 2 (contrat `contracts/cli.md` « Modes & priorité désinstallation »)
-- [X] T021 [P] [US4] Test de l'effet de la désinstallation in `scripts/__tests__/install.test.sh` : `disable --now`, unité supprimée + `daemon-reload`, purge utilisateur/dossier/config ; `--keep-config` préserve `/etc/tagmaker` ; idempotence sur installation absente → exit 0 (FR-008/SC-005)
+- [X] T021 [P] [US4] Test de l'effet de la désinstallation in `scripts/__tests__/install.test.sh` : `disable --now`, unité supprimée + `daemon-reload`, purge utilisateur/dossier/config ; `--keep-config` préserve `~/.tagmaker.env` ; idempotence sur installation absente → exit 0 (FR-008/SC-005)
 
 ### Implementation for User Story 4
 

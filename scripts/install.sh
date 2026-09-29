@@ -7,7 +7,6 @@ set -eu
 # Défauts (respect de la précédence flag > variable d'environnement > défaut)
 # ---------------------------------------------------------------------------
 : "${TAGMAKER_DIR:=/opt/tagmaker}"
-: "${TAGMAKER_ENV:=/etc/tagmaker/tagmaker.env}"
 : "${TAGMAKER_UNIT:=/etc/systemd/system/tagmaker.service}"
 : "${TAGMAKER_USER:=tagmaker}"
 : "${TAGMAKER_PORT:=3000}"
@@ -23,6 +22,21 @@ REQUIRED_NODE_MINOR="9"
 log()  { printf '%s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 
+# Home de l'utilisateur service (getent), repli sur /home/<user>.
+user_home() {
+    h=$(getent passwd "$1" 2>/dev/null | cut -d: -f6)
+    if [ -n "$h" ]; then printf '%s' "$h"; else printf '%s' "/home/$1"; fi
+}
+
+# Fichier de configuration : ~/.tagmaker.env (défaut) ou TAGMAKER_ENV explicite.
+env_file_path() {
+    if [ -n "${TAGMAKER_ENV:-}" ]; then
+        printf '%s' "$TAGMAKER_ENV"
+    else
+        printf '%s/.tagmaker.env' "$(user_home "$TAGMAKER_USER")"
+    fi
+}
+
 usage() {
     cat <<'EOF'
 Usage: install.sh [COMMANDE] [OPTIONS]
@@ -34,13 +48,14 @@ COMMANDE (défaut : install)
 
 OPTIONS
   -d, --dir <CHEMIN>       dossier de l'application (défaut: /opt/tagmaker)
-  -e, --env <CHEMIN>       fichier de configuration (défaut: /etc/tagmaker/tagmaker.env)
+  -e, --env <CHEMIN>       fichier de configuration (défaut: ~/.tagmaker.env,
+                           dans le home de l'utilisateur dédié)
   -u, --user <NOM>         utilisateur système dédié (défaut: tagmaker)
   -p, --port <PORT>        port d'écoute (défaut: 3000)
   -h, --host <ADRESSE>     adresse d'écoute (défaut: 0.0.0.0)
   -U, --uninstall          désinstalle le service (drapeau équivalent à la
                            commande `uninstall` ; désactive `install`)
-      --keep-config        (désinstallation) conserve /etc/tagmaker
+      --keep-config        (désinstallation) conserve le fichier ~/.tagmaker.env
       --dry-run            valide et affiche les actions prévues, ne modifie rien
   -q, --quiet              réduit la sortie
       --help               affiche cet usage et quitte (code 0)
@@ -154,7 +169,7 @@ ensure_prereqs() {
 }
 
 # ---------------------------------------------------------------------------
-# Configuration — /etc/tagmaker/tagmaker.env (contrat config.md, FR-002)
+# Configuration — ~/.tagmaker.env (home de l'utilisateur service) (config.md, FR-002)
 # ---------------------------------------------------------------------------
 env_value() {
     file="$1"
@@ -199,14 +214,14 @@ EOF
 
 effective_host() {
     h=""
-    [ -f "$TAGMAKER_ENV" ] && h=$(env_value "$TAGMAKER_ENV" "TAGMAKER_HOST")
+    [ -f "$(env_file_path)" ] && h=$(env_value "$(env_file_path)" "TAGMAKER_HOST")
     [ -n "$h" ] || h="$TAGMAKER_HOST"
     printf '%s' "$h"
 }
 
 effective_port() {
     p=""
-    [ -f "$TAGMAKER_ENV" ] && p=$(env_value "$TAGMAKER_ENV" "TAGMAKER_PORT")
+    [ -f "$(env_file_path)" ] && p=$(env_value "$(env_file_path)" "TAGMAKER_PORT")
     [ -n "$p" ] || p="$TAGMAKER_PORT"
     printf '%s' "$p"
 }
@@ -250,7 +265,7 @@ write_unit() {
     host="$1"
     port="$2"
     mkdir -p "$(dirname "$TAGMAKER_UNIT")"
-    unit_template "$host" "$port" "$TAGMAKER_DIR" "$TAGMAKER_ENV" "$TAGMAKER_USER" > "$TAGMAKER_UNIT"
+    unit_template "$host" "$port" "$TAGMAKER_DIR" "$(env_file_path)" "$TAGMAKER_USER" > "$TAGMAKER_UNIT"
     log "Unité écrite : $TAGMAKER_UNIT"
 }
 
@@ -279,8 +294,8 @@ create_service_user() {
     if id "$user" >/dev/null 2>&1; then
         log "Utilisateur système $user déjà présent."
     else
-        useradd --system --no-create-home --shell /usr/sbin/nologin "$user"
-        log "Utilisateur système non privilégié $user créé."
+        useradd --system --create-home --shell /usr/sbin/nologin "$user"
+        log "Utilisateur système non privilégié $user créé (home $(user_home "$user"))."
     fi
 }
 
@@ -318,7 +333,7 @@ print_report() {
 État du service :  systemctl status $SERVICE_NAME
 Point d'accès :    http://${host}:${port}
 Dossier :          $TAGMAKER_DIR
-Config :           $TAGMAKER_ENV
+Config :           $(env_file_path)
 
 Commandes de contrôle :
   sudo systemctl start|stop|restart $SERVICE_NAME
@@ -344,8 +359,9 @@ cmd_install() {
     create_service_user "$TAGMAKER_USER" || return 1
 
     example="$REPO_ROOT/.env.example"
-    create_env_file "$TAGMAKER_ENV" "$example" || return 1
-    [ -f "$TAGMAKER_ENV" ] || return 1
+    envfile=$(env_file_path)
+    create_env_file "$envfile" "$example" || return 1
+    [ -f "$envfile" ] || return 1
 
     deploy_appcode "$TAGMAKER_DIR" "$TAGMAKER_USER" || return 1
     build_app "$TAGMAKER_DIR" "$TAGMAKER_USER" || {
@@ -381,7 +397,7 @@ Boot :      $enabled
 PID/uptime: $pid_line
 Point d'accès : http://${host}:${port}
 Dossier :   $TAGMAKER_DIR
-Config :    $TAGMAKER_ENV
+Config :    $(env_file_path)
 EOF
 }
 
@@ -422,12 +438,19 @@ uninstall_remove_data() {
 }
 
 uninstall_remove_config() {
-    cfgdir=$(dirname "$TAGMAKER_ENV")
+    envfile=$(env_file_path)
     if [ "$keep_config" = "yes" ]; then
-        log "Configuration conservée : $cfgdir"
-    elif [ -d "$cfgdir" ]; then
-        rm -rf "$cfgdir"
-        log "Configuration $cfgdir purgée."
+        log "Configuration conservée : $envfile"
+        return
+    fi
+    if [ -f "$envfile" ]; then
+        rm -f "$envfile"
+        log "Configuration $envfile purgée."
+    fi
+    cfgdir=$(dirname "$envfile")
+    if [ -d "$cfgdir" ] && [ -z "$(ls -A "$cfgdir" 2>/dev/null)" ]; then
+        rmdir "$cfgdir" 2>/dev/null || true
+        log "Dossier de configuration vide supprimé : $cfgdir"
     fi
 }
 
@@ -438,8 +461,8 @@ dry_run_install() {
     cat <<EOF
 [DRY-RUN] install de TagMaker — aucune modification effectuée.
   Prérequis : distro + Node.js ≥ ${REQUIRED_NODE_MAJOR}.${REQUIRED_NODE_MINOR} (apt/dnf/yum)
-  Utilisateur : $TAGMAKER_USER (dédié, non privilégié)
-  Config : $TAGMAKER_ENV (créée depuis .env.example si absent, jamais écrasée)
+  Utilisateur : $TAGMAKER_USER (dédié, non privilégié, home créé)
+  Config : $(env_file_path) (~/.tagmaker.env, créée depuis .env.example si absent)
   Dossier : $TAGMAKER_DIR + build production (npm ci && npm run build, FR-003)
   Unité : $TAGMAKER_UNIT puis systemctl enable --now $SERVICE_NAME
   Écoute : http://${TAGMAKER_HOST}:${TAGMAKER_PORT} (LAN de confiance, FR-010/FR-011)
@@ -447,7 +470,7 @@ EOF
 }
 
 dry_run_uninstall() {
-    keep="$TAGMAKER_ENV"
+    keep="$(env_file_path)"
     [ "$keep_config" = "yes" ] && keep="$keep (conservée par --keep-config)"
     cat <<EOF
 [DRY-RUN] uninstall de TagMaker — aucune modification effectuée.

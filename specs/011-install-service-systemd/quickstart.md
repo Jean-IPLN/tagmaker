@@ -85,7 +85,7 @@ curl -sI http://<ip>:3000 | head -1 # → HTTP 200
 ## 7. Mise à jour préservant la configuration (US3)
 
 ```sh
-sudo tee -a /etc/tagmaker/tagmaker.env >/dev/null <<EOF
+sudo tee -a /home/tagmaker/.tagmaker.env >/dev/null <<EOF
 TAGMAKER_PORT=3100
 EOF
 git -C /opt/tagmaker pull        # ou : git pull dans le clone d'origine
@@ -107,18 +107,18 @@ sh scripts/install.sh --uninstall
 systemctl status tagmaker 2>&1 | grep -q "Loaded: not-found" || echo KO
 ls /opt/tagmaker 2>/dev/null && echo KO   # → aucune sortie OK
 pgrep -f next || echo KO                  # → aucun processus orphelin
-ls /etc/tagmaker 2>/dev/null && echo KO   # → config purgée
+ls /home/tagmaker/.tagmaker.env 2>/dev/null && echo KO   # → config purgée
 ```
 
 **Attendu** : aucune ligne `KO` — service retiré, dossier, config et processus
 absents. Variante de conservation de la configuration : `uninstall
---keep-config` (ou `--uninstall --keep-config`) : `/etc/tagmaker` préservé.
+--keep-config` (ou `--uninstall --keep-config`) : `~/.tagmaker.env` préservé.
 
 ## 9. Impression réelle (optionnel, imprimante ZPL)
 
 Ouvrir `http://<ip-serveur>:3000` depuis un poste du LAN, module
 Emplacement/EAN-13, imprimer 1 étiquette avec l'imprimante paramétrée dans
-`tagmaker.env` : l'étiquette sort avec le code-barres relisible (SC-002,
+`~/.tagmaker.env` : l'étiquette sort avec le code-barres relisible (SC-002,
 comportement applicatif inchangé).
 
 ## Critères d'acceptation couverts

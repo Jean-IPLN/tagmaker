@@ -8,9 +8,10 @@ Le déploiement produit quatre persistants système :
 
 ```text
 /opt/tagmaker/                  # code + build de l'application (propriétaire: tagmaker)
-/etc/tagmaker/tagmaker.env      # configuration de l'application (EnvironmentFile)
+~tagmaker/.tagmaker.env         # configuration de l'application (EnvironmentFile)
+                                #   (= /home/tagmaker/.tagmaker.env, home dédié tagmaker)
 /etc/systemd/system/tagmaker.service  # unité systemd
-utilisateur système "tagmaker"  # compte d'exécution non privilégié
+utilisateur système "tagmaker"  # compte d'exécution non privilégié (home créé)
 ```
 
 ## Entités
@@ -27,9 +28,13 @@ utilisateur système "tagmaker"  # compte d'exécution non privilégié
 - **Fiabilité** : si le build échoue, le dossier existant reste intact et le
   service continue de tourner (FR-003).
 
-### Configuration (`/etc/tagmaker/tagmaker.env`)
+### Configuration (`~/.tagmaker.env` — home de l'utilisateur service)
 
 - **Représente** : le paramétrage d'exploitation de l'application.
+- **Emplacement** : `~/.tagmaker.env`, le `~` étant le répertoire personnel de
+  l'utilisateur dédié `tagmaker` (`useradd --create-home` →
+  `/home/tagmaker/.tagmaker.env`). Un chemin explicite via `-e`/`TAGMAKER_ENV`
+  reste possible.
 - **Genre** : fichier clé-valeur utilisable comme `EnvironmentFile` systemd,
   produit à partir de `.env.example` du dépôt.
 - **Cycle de vie** : créé à la première installation (valeurs par défaut
@@ -46,7 +51,8 @@ utilisateur système "tagmaker"  # compte d'exécution non privilégié
 
 - **Représente** : la déclaration du service auprès de systemd.
 - **Contenu stable** : `Description`, `User=tagmaker`, `Group=tagmaker`,
-  `WorkingDirectory=/opt/tagmaker`, `EnvironmentFile=/etc/tagmaker/tagmaker.env`,
+  `WorkingDirectory=/opt/tagmaker`, `EnvironmentFile=%h/.tagmaker.env`
+  (défaut, `%h` = home de `tagmaker`) ou chemin exact si `TAGMAKER_ENV` fixé,
   `ExecStart=<node> .../node_modules/next/dist/bin/next start -H <host> -p <port>`,
   `Restart=on-failure`, `RestartSec=3`, `StartLimitIntervalSec=10`,
   `StartLimitBurst=5`, `StandardOutput=journal`, `StandardError=journal`,
@@ -59,8 +65,9 @@ utilisateur système "tagmaker"  # compte d'exécution non privilégié
 ### Utilisateur système `tagmaker`
 
 - **Représente** : le compte d'exécution non privilégié du service.
-- **Règles** : créé par le script sans shell de connexion (`nologin`) et sans
-  mot de passe ; propriétaire de `/opt/tagmaker` ; jamais utilisé en
+- **Règles** : créé par le script sans shell de connexion (`nologin`), sans
+  mot de passe et avec un répertoire personnel dédié (`--create-home`, où vit
+  `~/.tagmaker.env`) ; propriétaire de `/opt/tagmaker` ; jamais utilisé en
   administrateur (FR-009). Supprimé à la désinstallation.
 
 ## États & transitions

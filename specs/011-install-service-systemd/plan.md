@@ -29,7 +29,7 @@ application existante en Node.js/Next.js 16 (Node ≥ 20.9 — vérifié dans
 dépendance tierce ajoutée ; le script orchestre `npm ci` / `npm run build`.
 
 **Storage**: fichiers système uniquement — `/opt/tagmaker` (code+build),
-`/etc/tagmaker/tagmaker.env` (config), unité
+`~/.tagmaker.env` (config, home de l'utilisateur dédié), unité
 `/etc/systemd/system/tagmaker.service`, utilisateur `tagmaker`. Aucune donnée
 applicative côté serveur.
 

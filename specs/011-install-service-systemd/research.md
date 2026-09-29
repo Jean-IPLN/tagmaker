@@ -53,7 +53,7 @@ par le script. Aucun ajout de source externe (sécurité, KISS).
 | Ressource | Chemin |
 |-----------|--------|
 | Dossier d'application (clone/copie du code) | `/opt/tagmaker` |
-| Configuration (`EnvironmentFile`) | `/etc/tagmaker/tagmaker.env` |
+| Configuration (`EnvironmentFile`) | `~/.tagmaker.env` (home de `tagmaker`, soit `/home/tagmaker/.tagmaker.env`) |
 | Utilisateur système dédié (non privilégié) | `tagmaker` |
 | Unité systemd | `/etc/systemd/system/tagmaker.service` |
 
@@ -113,7 +113,7 @@ sous-commande `uninstall` **et le drapeau** `--uninstall` (alias `-U`) — ce
 drapeau désactive le mode d'installation par défaut (`install.sh --uninstall`
 désinstalle directement). Action : `systemctl disable --now tagmaker`,
 suppression de l'unité + `daemon-reload`, suppression de l'utilisateur et du
-dossier `/opt/tagmaker`, purge de la configuration `/etc/tagmaker` (avec
+dossier `/opt/tagmaker`, purge de la configuration `~/.tagmaker.env` (avec
 `--keep-config` pour la conserver). Aucun processus orphelin.**
 
 **Rationale**: exigence FR-008 + SC-005 (pas de résidu) ; le drapeau

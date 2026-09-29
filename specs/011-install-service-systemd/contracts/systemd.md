@@ -15,7 +15,7 @@ réseau local par défaut.
 | `Description` | `TagMaker — impression d'étiquettes` |
 | `User` / `Group` | `tagmaker` / `tagmaker` |
 | `WorkingDirectory` | `/opt/tagmaker` |
-| `EnvironmentFile` | `/etc/tagmaker/tagmaker.env` |
+| `EnvironmentFile` | `%h/.tagmaker.env` (home de `tagmaker`, soit `/home/tagmaker/.tagmaker.env`) |
 | `ExecStart` | `<node> <app>/node_modules/next/dist/bin/next start -H <host> -p <port>` |
 | `Restart` | `on-failure` |
 | `RestartSec` | `3` |
@@ -29,8 +29,8 @@ réseau local par défaut.
   une relance ; un arrêt manuel (`systemctl stop`) ne relance pas.
 - **protection marche-arrêt** : après 5 échecs en 10 s, systemd abandonne
   (état `failed`) — l'opérateur consulte les journaux pour diagnostiquer.
-- `<host>` / `<port>` : lus depuis `tagmaker.env` au moment de la génération de
-  l'unité (défauts `0.0.0.0` / `3000`) ; modifiables par l'opérateur.
+- `<host>` / `<port>` : lus depuis `~/.tagmaker.env` au moment de la génération
+  de l'unité (défauts `0.0.0.0` / `3000`) ; modifiables par l'opérateur.
 
 ## Commandes de contrôle (objet du besoin)
 
@@ -49,9 +49,10 @@ réseau local par défaut.
 
 ## Personnalisation opérateur
 
-- `port`/`host` : modifier `tagmaker.env` puis `sudo systemctl daemon-reload &&
-  sudo systemctl restart tagmaker` — le fichier est la **source de vérité** à
-  l'installation ; un drop-in systemd reste possible pour tout autre réglage.
+- `port`/`host` : modifier `~/.tagmaker.env` puis `sudo systemctl
+  daemon-reload && sudo systemctl restart tagmaker` — le fichier est la
+  **source de vérité** à l'installation ; un drop-in systemd reste possible pour
+  tout autre réglage.
 - Le script ne régénère l'unité que pendant une installation/mise à jour et
   **préserve** tout drop-in existant.
 
@@ -59,5 +60,5 @@ réseau local par défaut.
 
 Le service sert l'application sur `http://<host>:<port>` (défaut :
 `http://<serveur>:3000`) sans authentification (FR-011 — LAN de confiance).
-L'application nécessite les variables `ZPL_*` valides de `tagmaker.env` pour
-l'impression (héritées de `.env.example`).
+L'application nécessite les variables `ZPL_*` valides de `~/.tagmaker.env`
+pour l'impression (héritées de `.env.example`).

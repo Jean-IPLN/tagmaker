@@ -45,15 +45,23 @@ run_tests() {
     expect_contains "T007: jamais écrasé (marqueur préservé)" '# marqueur opérateur' "$(cat "$cfg")"
     tear
 
+    # env_file_path : défaut ~/.tagmaker.env dans le home de l'utilisateur dédié
+    saved_env="${TAGMAKER_ENV:-}"
+    unset TAGMAKER_ENV
+    expect_eq "T007: défaut env_file_path ~/.tagmaker.env" "/home/tagmaker/.tagmaker.env" "$(env_file_path)"
+    TAGMAKER_ENV="$saved_env"
+    export TAGMAKER_ENV
+    expect_eq "T007: override TAGMAKER_ENV" "$saved_env" "$(env_file_path)"
+
     # --- T008 : champs de l'unité systemd (systemd contract) ---
-    unit=$(unit_template '0.0.0.0' '3000' '/opt/tagmaker' '/etc/tagmaker/tagmaker.env' 'tagmaker')
+    unit=$(unit_template '0.0.0.0' '3000' '/opt/tagmaker' '/home/tagmaker/.tagmaker.env' 'tagmaker')
     for needle in \
         '[Unit]' \
         "Description=TagMaker — impression d'étiquettes" \
         'User=tagmaker' \
         'Group=tagmaker' \
         'WorkingDirectory=/opt/tagmaker' \
-        'EnvironmentFile=/etc/tagmaker/tagmaker.env' \
+        'EnvironmentFile=/home/tagmaker/.tagmaker.env' \
         'next start -H 0.0.0.0 -p 3000' \
         'Restart=on-failure' \
         'RestartSec=3' \
@@ -127,7 +135,7 @@ run_tests() {
     uninstall_remove_data
     expect_no_file "T021: dossier d'app supprimé" "$TAGMAKER_DIR"
 
-    # --keep-config préserve /etc/tagmaker
+    # --keep-config préserve le fichier de configuration du home
     mkdir -p "$(dirname "$TAGMAKER_ENV")"
     printf 'x\n' > "$TAGMAKER_ENV"
     keep_config=yes

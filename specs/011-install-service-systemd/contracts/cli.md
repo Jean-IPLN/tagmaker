@@ -17,13 +17,14 @@ COMMANDE (défaut : install)
 
 OPTIONS
   -d, --dir <CHEMIN>       dossier de l'application (défaut: /opt/tagmaker)
-  -e, --env <CHEMIN>       fichier de configuration (défaut: /etc/tagmaker/tagmaker.env)
+  -e, --env <CHEMIN>       fichier de configuration (défaut: ~/.tagmaker.env,
+                           home de l'utilisateur dédié, ex. /home/tagmaker/.tagmaker.env)
   -u, --user <NOM>         utilisateur système dédié (défaut: tagmaker)
   -p, --port <PORT>        port d'écoute (défaut: 3000)
   -h, --host <ADRESSE>     adresse d'écoute (défaut: 0.0.0.0)
   -U, --uninstall           désinstalle le service (drapeau équivalent à la
                             commande `uninstall` ; désactive `install`)
-      --keep-config        (désinstallation) conserve /etc/tagmaker
+      --keep-config        (désinstallation) conserve le fichier ~/.tagmaker.env
                            (vaut pour `uninstall` et --uninstall)
       --dry-run            valide et affiche les actions prévues, ne modifie rien
   -q, --quiet              réduit la sortie
@@ -45,9 +46,10 @@ que les flags : `TAGMAKER_DIR`, `TAGMAKER_ENV`, `TAGMAKER_USER`,
 ## Comportement `install`
 
 1. Vérifie les droits et prérequis (installation des paquets manquants).
-2. Crée `TAGMAKER_USER` (si absent) — non privilégié, `nologin`.
-3. Crée `/etc/tagmaker/tagmaker.env` depuis `.env.example` **si absent**
-   (jamais écrasé) ; applique host/port par défaut du contrat config.
+2. Crée `TAGMAKER_USER` (si absent) — non privilégié, `nologin`, avec home
+   dédié (`--create-home`).
+3. Crée `~/.tagmaker.env` depuis `.env.example` **si absent** (jamais écrasé) ;
+   applique host/port par défaut du contrat config.
 4. Copie le dépôt vers `TAGMAKER_DIR` (propriétaire `TAGMAKER_USER`) — ou
    l'utilise en place si c'est déjà le dossier de travail.
 5. Exécute `npm ci && npm run build` **en tant que** `TAGMAKER_USER`.
@@ -84,7 +86,8 @@ enregistrée/démarrée, dossier existant intact (FR-003).
 1. `systemctl disable --now tagmaker` (ignore l'absence d'unité).
 2. Supprime `/etc/systemd/system/tagmaker.service` + `daemon-reload`.
 3. Supprime `TAGMAKER_USER` et `TAGMAKER_DIR` (données du dossier).
-4. Supprime le fichier de configuration (sauf `--keep-config`).
+4. Supprime `~/.tagmaker.env` (et le home dédié s'il devient vide), sauf
+   `--keep-config`.
 5. Sortie : récapitulatif des éléments supprimés (SC-005).
 
 Toujours idempotent : `uninstall` sur une installation absente réussit (code 0)
