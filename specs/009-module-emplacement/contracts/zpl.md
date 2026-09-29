@@ -24,9 +24,10 @@ police de la ligne lisible : impossible d'en changer la police par `^CF`).
 | `MAX_MODULE_WIDTH` | 8 dots | X max Code 128 (1.0 mm) |
 | `TARGET_HEIGHT_COVERAGE` | `0.9` | bloc (barres + texte + gap) = 90 % de `heightDots` |
 | `MIN_BAR_HEIGHT_DOTS` | 51 | plancher scannabilité (0.25″) |
-| `TEXT_HEIGHT_RATIO` | `0.12` | hauteur texte = 12 % de `heightDots` |
-| `TEXT_HEIGHT_MIN` | 25 dots | hauteur texte minimale (~3.08 mm) |
-| `TEXT_HEIGHT_MAX` | 80 dots | hauteur texte maximale |
+| `TEXT_HEIGHT_RATIO` | `0.18` | hauteur texte = 18 % de `heightDots` |
+| `TEXT_HEIGHT_MIN` | 25 dots | hauteur texte minimale (desired, avant quantification) |
+| `TEXT_HEIGHT_MAX` | 110 dots | hauteur texte maximale (desired, avant quantification) |
+| `OCR_B_CELL_HEIGHT` | 28 dots | cellule natale de la police E (OCR-B) @203 dpi — la hauteur `^AEN` n'est appliquée que par multiples de cette cellule |
 | `TEXT_GAP_RATIO` | `0.15` | gap barres→texte = 15 % de `textHeight` |
 | `OCR_B_WIDTH_RATIO` | `0.48` | `wCell` (largeur de cellule ^AEN OCR-B, ratio l/h) |
 | `CHAR_ADVANCE_RATIO` | `0.52` | resserrement inter-caractères (avance) OCR-B + hachures |
@@ -37,12 +38,18 @@ police de la ligne lisible : impossible d'en changer la police par `^CF`).
 
 ## Calculs de position (priorité identique au module EAN-13, feature 008)
 
+**Aucun format en dur** : tout est calculé depuis `widthDots`/`heightDots` —
+tout format de papier ajouté au répertoire (`lib/paper-sizes.ts`) est imprimé
+correctement sans modification (tests : format de référence 100×150 + garde-fou
+40×25 + format futur 50×30).
+
 ```
 moduleWidth = clamp(floor(widthDots / TOTAL_MODULES), MIN_MODULE_WIDTH, MAX_MODULE_WIDTH)
 barsWidth   = SYMBOL_MODULES × moduleWidth
 x           = round((widthDots − barsWidth) / 2)
 
-textHeight  = clamp(round(heightDots × TEXT_HEIGHT_RATIO), TEXT_HEIGHT_MIN, TEXT_HEIGHT_MAX)
+desired     = clamp(round(heightDots × TEXT_HEIGHT_RATIO), TEXT_HEIGHT_MIN, TEXT_HEIGHT_MAX)
+textHeight  = ceil(desired / OCR_B_CELL_HEIGHT) × OCR_B_CELL_HEIGHT   // multiple de 28 ≤ 4 × 28
 gap         = round(textHeight × TEXT_GAP_RATIO)
 blockHeight = round(TARGET_HEIGHT_COVERAGE × heightDots)
 barHeight   = max(blockHeight − textHeight − gap, MIN_BAR_HEIGHT_DOTS)
@@ -53,6 +60,10 @@ advance     = round(textHeight × CHAR_ADVANCE_RATIO)
 textWidth   = code.length × advance
 xText       = x + round((barsWidth − textWidth) / 2)
 ```
+
+> OCR-B bitmap fixe : `^AEN` n'honore la hauteur que par multiples de 28 dots.
+> En demandant le **multiple supérieur**, le texte imprimé correspond au calcul
+> (barres + gap + texte = exactement 90 %) sur tous les formats.
 
 ## Flux ZPL — mode « Un seul » (quantity ≥ 1)
 
@@ -105,20 +116,29 @@ largeur de symbole) ; seul l'`^FD` change.
 ## Exemples signifiants
 
 - `codes: ["1A5B"], quantity: 5, 40×25` : contenance `^PW320^LL200`,
-  `^FO42,10^BCN,151,N,N,N`, `^FO135,165^AEN,25,12`, `^PQ5`.
+  `^FO42,10^BCN,116,N,N,N`, `^FO103,134^AEN,56,27`, `^PQ5`.
 - `codes: ["1A10","1A11"], 40×25` : 2 blocs `^XA…^XZ`, aucun `^PQ`, chaque
-  bloc porte `^FO42,10^BCN,151,N,N,N` + `^FO135,165^AEN,25,12^FD1A10/1A11^FS`.
+  bloc porte `^FO42,10^BCN,116,N,N,N` + `^FO103,134^AEN,56,27^FD1A10/1A11^FS`.
 
 ## Données attendues par format de papier (code 4 caractères)
 
 | Format | `^BY` | `barHeight` | `^BCN` | `textHeight` | gap | `xText` | `yText` | `^AEN` |
 |--------|------:|------------:|:-------|-------------:|----:|--------:|--------:|:-------|
-| `40x25` (320×200) | `^BY3,3,151` | 151 | `^FO42,10^BCN,151,N,N,N` | 25 | 4 | 135 | 165 | `^FO135,165^AEN,25,12` |
-| `75x25` (600×200) | `^BY6,3,151` | 151 | `^FO63,10^BCN,151,N,N,N` | 25 | 4 | 274 | 165 | `^FO274,165^AEN,25,12` |
-| `100x50` (800×400) | `^BY8,3,305` | 305 | `^FO84,20^BCN,305,N,N,N` | 48 | 7 | 350 | 332 | `^FO350,332^AEN,48,23` |
-| `100x150` (800×1200) | `^BY8,3,988` | 988 | `^FO84,60^BCN,988,N,N,N` | 80 | 12 | 316 | 1060 | `^FO316,1060^AEN,80,38` |
+| `40x25` (320×200) | `^BY3,3,116` | 116 | `^FO42,10^BCN,116,N,N,N` | 56 | 8 | 103 | 134 | `^FO103,134^AEN,56,27` |
+| `75x25` (600×200) | `^BY6,3,116` | 116 | `^FO63,10^BCN,116,N,N,N` | 56 | 8 | 242 | 134 | `^FO242,134^AEN,56,27` |
+| `100x50` (800×400) | `^BY8,3,263` | 263 | `^FO84,20^BCN,263,N,N,N` | 84 | 13 | 312 | 296 | `^FO312,296^AEN,84,40` |
+| `100x150` (800×1200) | `^BY8,3,951` | 951 | `^FO84,60^BCN,951,N,N,N` | 112 | 17 | 284 | 1028 | `^FO284,1028^AEN,112,54` |
 
-> Vérification sur le terrain (Zebra ZD420, 2026-09-29) : rendu validé sur
-> 40×25 et 75×25 (texte non étiré, une seule occurrence, centré). Référence
-> des tests automatiques : **formats 100×150 (principal) et 40×25 (garde-fou,
-> défaut de l'application)**.
+> Ces valeurs sont données pour le code à 4 caractères ; **elles ne sont pas
+> saisies quelque part** : elles découlent des formules génériques — un format
+> ajouté (`lib/paper-sizes.ts`) est couvert automatiquement (ex. futur 50×30 →
+> `^BY4,3,152`, `^FO42,12^BCN,152,N,N,N`, `^FO142,172^AEN,56,27`).
+
+> Révisions 2026-09-29 : **013** texte agrandi (`TEXT_HEIGHT_RATIO` 0.12 → 0.18,
+> `TEXT_HEIGHT_MAX` 80 → 110) puis **014** **quantification OCR-B** : la police E
+> est bitmap fixe (28×15 @203 dpi), `^AEN` n'honore la hauteur que par multiples
+> de 28 → demande du **multiple supérieur** (`ceil`). Rendu : 40×25/75×25 = 56
+> dots, 100×50 = 84, 100×150 = 112 — texte réellement agrandi sur les petits
+> formats, invariants 90 % conservés, tout format futur géré par les formules.
+> Référence des tests automatiques : **100×150 (principal), 40×25 (garde-fou,
+> défaut de l'application) et 50×30 (format futur)**.

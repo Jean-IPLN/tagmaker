@@ -16,9 +16,13 @@ const MIN_MODULE_WIDTH = 2;
 const MAX_MODULE_WIDTH = 8;
 const TARGET_HEIGHT_COVERAGE = 0.9;
 const MIN_BAR_HEIGHT_DOTS = 51;
-const TEXT_HEIGHT_RATIO = 0.12;
+const TEXT_HEIGHT_RATIO = 0.18;
 const TEXT_HEIGHT_MIN = 25;
-const TEXT_HEIGHT_MAX = 80;
+const TEXT_HEIGHT_MAX = 110;
+// Police E (OCR-B) bitmap 28×15 dots @203 dpi : la hauteur ^AEN n'est
+// appliquée que par multiples de 28 (la cellule native) — on monte au
+// multiple supérieur pour que le texte réellement imprimé suive le calcul.
+const OCR_B_CELL_HEIGHT = 28;
 const TEXT_GAP_RATIO = 0.15;
 const OCR_B_WIDTH_RATIO = 0.48;
 const CHAR_ADVANCE_RATIO = 0.52;
@@ -73,11 +77,13 @@ export function buildLocationZpl({
   widthDots,
   heightDots,
 }: BuildLocationZplInput): string {
-  const textHeight = clamp(
+  const desiredTextHeight = clamp(
     Math.round(heightDots * TEXT_HEIGHT_RATIO),
     TEXT_HEIGHT_MIN,
     TEXT_HEIGHT_MAX
   );
+  const textHeight =
+    Math.ceil(desiredTextHeight / OCR_B_CELL_HEIGHT) * OCR_B_CELL_HEIGHT;
   const gap = Math.round(textHeight * TEXT_GAP_RATIO);
 
   const { moduleWidth, barsWidth, x, barHeight, y } = computeBarcodeLayout({

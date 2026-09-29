@@ -95,6 +95,14 @@ branche dédiée `feature/009-module-emplacement` avant implémentation.
 > optionnel `textGapDots` (défaut 0) → `buildEan13Zpl` **inchangé**. Réf.
 > `contracts/zpl.md` (révision 012), `research.md` § Validation matérielle,
 > `data-model.md` § constantes, bilan dans `tasks.md`.
+>
+> **Évolutions 013/014 (même branche)** : ratio texte 0.18 (max 110) puis
+> **quantification OCR-B** — font E bitmap fixe (28×15), la hauteur `^AEN`
+> n'est honorée que par multiples de 28 → `textHeight =
+> ceil(clamp(round(h×0.18),25,110)/28)×28`. Tous les formats proportionnels,
+> **un format papier ajouté au répertoire est géré automatiquement** (test
+> format futur 50×30). Valeurs : 40×25/75×25 = 56, 100×50 = 84, 100×150 =
+> 112.
 
 ## Project Structure
 

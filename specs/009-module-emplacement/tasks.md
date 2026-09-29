@@ -99,12 +99,13 @@ démarrer.
 - [X] T005 [P] RED : écrire les tests de layout Code 128 dans
       `lib/zpl/__tests__/location.test.ts` — flux `^BC` (`^XA`/`^XZ`,
       `^PW{width}^LL{height}`, `^LH0,0`, `^BY{module},3,{barHeight}`,
-      `^FO{x},{y}^BCN,{barHeight},Y,N,N`, `^FD` = 4 caractères du code) ;
+      `^FO{x},{y}^BCN,{barHeight},N,N,N` + champ `^FO{xText},{yText}^AEN`, 
+      `^FD` = 4 caractères du code) ;
       valeurs EXACTES du `contracts/zpl.md` (module/X-plafond 2..8,
       `SYMBOL_MODULES = 11×4+35 = 79`, `TOTAL_MODULES = 99`, plancher barres
-      51 dots, `TEXT_HEIGHT_DOTS = 25`, couverture 0.9) — `40x25`→
-      `^BY3,3,155`/`^FO42,10`, `75x25`→`^BY6,3,155`/`^FO63,10`,
-      `100x50`→`^BY8,3,335`/`^FO84,20`, `100x150`→`^BY8,3,1055`/`^FO84,60` ;
+      51 dots, texte 18 %/25..110 quantifié par 28, couverture 0.9) — `40x25`→
+      `^BY3,3,116`/`^FO42,10`, `75x25`→`^BY6,3,116`/`^FO63,10`,
+      `100x50`→`^BY8,3,263`/`^FO84,20`, `100x150`→`^BY8,3,951`/`^FO84,60` ;
       invariants par format : zones de silence `x ≥ 10 × module` ET
       `widthDots − x − barsWidth ≥ 10 × module`, `x + barsWidth ≤ widthDots`,
       `blockHeight / heightDots = 0.9`, `barHeight ≥ 51`, clamp module (320 →
@@ -455,28 +456,33 @@ Task: "T018 RED passthrough réglages → T019 GREEN location-form/route / T020"
 
 **Valeurs « générées par format »** — vérifié automatiquement par
 `lib/zpl/__tests__/location.test.ts` (tableau FORMATS) ; **référence des
-tests : format 100×150 (principal) + 40×25 (garde-fou, défaut de l'app)** :
+tests : format 100×150 (principal) + 40×25 (garde-fou, défaut de l'app) +
+50×30 (format futur, gestion automatique)** :
 
 | Format (mm) | module | barres | x | text | gap | barHeight | y | xText | yText | couverture |
 |-------------|--------|-------:|--:|-----:|----:|----------:|---:|------:|------:|------------|
-| 40x25       | 3      | 237    | 42 | 25   | 4   | 151       | 10 | 135   | 165   | 90 %       |
-| 75x25       | 6      | 474    | 63 | 25   | 4   | 151       | 10 | 274   | 165   | 90 %       |
-| 100x50      | 8      | 632    | 84 | 48   | 7   | 305       | 20 | 350   | 332   | 90 %       |
-| 100x150     | 8      | 632    | 84 | 80   | 12  | 988       | 60 | 316   | 1060  | 90 %       |
+| 40x25       | 3      | 237    | 42 | 56   | 8   | 116       | 10 | 103   | 134   | 90 %       |
+| 75x25       | 6      | 474    | 63 | 56   | 8   | 116       | 10 | 242   | 134   | 90 %       |
+| 100x50      | 8      | 632    | 84 | 84   | 13  | 263       | 20 | 312   | 296   | 90 %       |
+| 100x150     | 8      | 632    | 84 | 112  | 17  | 951       | 60 | 284   | 1028  | 90 %       |
+| 50x30 (futur) | 4    | 316    | 42 | 56   | 8   | 152       | 12 | 142   | 172   | 90 %       |
 
 Invariants verrouillés : zones de silence ≥ 10 modules/côté, `x + barsWidth ≤
 widthDots`, `blockHeight/heightDots = 0.9`, `barHeight ≥ 51`, clamp module
 2..8, `gap > 0`, texte ni plus large que le symbole ni coupé en bas
-(`yText + textHeight = y + blockHeight`). Flux `^BCN,h,N,N,N` + champ
+(`yText + textHeight = y + blockHeight`), **textHeight multiple de 28 dots
+(cellule OCR-B, `ceil`)**. Flux `^BCN,h,N,N,N` + champ
 `^FO{xText},{yText}^AEN,{textHeight},{wCell}` (font E = OCR-B) sans rotation,
-`^PQ` en single uniquement, **aucun** `^CF`.
+`^PQ` en single uniquement, **aucun** `^CF`. Aucun format en dur : le layout
+découle uniquement de `widthDots`/`heightDots`.
 
-**Impression réelle / scan (évol. 012)** : la **HRI native est désactivée** et
-le texte OCR-B rendu dans un champ dédié (cause : le firmware ≤ 10.x verrouille
+**Impression réelle / scan (évol. 012–014)** : la **HRI native est désactivée**
+et le texte OCR-B rendu dans un champ dédié (cause : firmware ≤ 10.x verrouille
 la police de la HRI native sur `^CF0` — `^CFE` sans effet, diagnostiqué en
-Zebra ZD420 réelle). Rendu **confirmé visuellement** sur 40×25 et 75×25
-(texte non étiré, unique, centré, gap respecté). Restants physiques **en
-attente** : rendu 100×50/100×150 + scan réel (quickstart étape 5).
+Zebra ZD420 réelle). Rendu **confirmé visuellement** sur 40×25 et 75×25 avec
+texte 25/36 (non étiré, unique, centré). Après quantification **014** (texte
+56/84/112, barres 116/263/951) : **reconfirmation physique en attente** sur les
+4 formats + scan réel (quickstart étape 5).
 
 ## Évolution post-009 — calcul de plage en « boîte » (feature 010)
 

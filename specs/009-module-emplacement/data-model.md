@@ -84,9 +84,10 @@ Exemples :
 | `MAX_MODULE_WIDTH` | 8 dots | X max Code 128 (1.0 mm) |
 | `TARGET_HEIGHT_COVERAGE` | 0.9 | bloc (barres + texte + gap) = 90 % de la hauteur (convention 008) |
 | `MIN_BAR_HEIGHT_DOTS` | 51 | plancher scannabilité code-barres (0.25″) |
-| `TEXT_HEIGHT_RATIO` | 0.12 | hauteur du texte OCR-B = 12 % de `heightDots` |
-| `TEXT_HEIGHT_MIN` | 25 dots | hauteur texte minimale (~3.08 mm, matrice OCR-B ZD) |
-| `TEXT_HEIGHT_MAX` | 80 dots | hauteur texte maximale |
+| `TEXT_HEIGHT_RATIO` | 0.18 | hauteur désirée du texte OCR-B = 18 % de `heightDots` |
+| `TEXT_HEIGHT_MIN` | 25 dots | hauteur désirée minimale (avant quantification) |
+| `TEXT_HEIGHT_MAX` | 110 dots | hauteur désirée maximale (avant quantification) |
+| `OCR_B_CELL_HEIGHT` | 28 dots | cellule OCR-B @203 dpi — `^AEN` applique la hauteur par multiples de 28 (bitmap fixe) |
 | `TEXT_GAP_RATIO` | 0.15 | gap barres→texte = 15 % de `textHeight` |
 | `OCR_B_WIDTH_RATIO` | 0.48 | `wCell` (largeur de cellule `^AEN` OCR-B, ratio l/h) |
 | `CHAR_ADVANCE_RATIO` | 0.52 | resserrement inter-caractères (avance) OCR-B |
@@ -94,9 +95,10 @@ Exemples :
 > Les constantes hauteur/largeur/gap remplacent l'ancienne
 > `TEXT_HEIGHT_DOTS = 25` fixe (évol. 012, révision 2026-09-29) : le texte
 > devient **proportionnel au format**, avec un **gap** entre les barres et le
-> texte, la ligne lisible native étant désactivée.
+> texte, la ligne lisible native étant désactivée. Révision **014** : la
+> hauteur est **quantifiée** au multiple supérieur de `OCR_B_CELL_HEIGHT` (28).
 
-## Invariants de calcul (vérifiés par test sur les 4 formats)
+## Invariants de calcul (vérifiés par test sur les 4 formats + format futur 50×30)
 
 Layout commun (avec `computeBarcodeLayout`, paramètre `textGapDots`) :
 
@@ -112,7 +114,8 @@ y           = round((heightDots − blockHeight) / 2)
 Champ texte dédié OCR-B (module Emplacement uniquement) :
 
 ```
-textHeight = clamp(round(heightDots × TEXT_HEIGHT_RATIO), TEXT_HEIGHT_MIN, TEXT_HEIGHT_MAX)
+desired    = clamp(round(heightDots × TEXT_HEIGHT_RATIO), TEXT_HEIGHT_MIN, TEXT_HEIGHT_MAX)
+textHeight = ceil(desired / OCR_B_CELL_HEIGHT) × OCR_B_CELL_HEIGHT   // multiple de 28
 gap        = round(textHeight × TEXT_GAP_RATIO)
 barHeight  = max(blockHeight − textHeight − gap, MIN_BAR_HEIGHT_DOTS)   // gap ≠ 0
 yText      = y + barHeight + gap
@@ -121,6 +124,10 @@ advance    = round(textHeight × CHAR_ADVANCE_RATIO)
 textWidth  = code.length × advance
 xText      = x + round((barsWidth − textWidth) / 2)
 ```
+
+> Tous les calculs dépendent uniquement de `widthDots`/`heightDots` : aucun
+> format n'est codé en dur — ajouter un format au répertoire papier suffit
+> (test automatique sur le format futur 50×30).
 
 1. `x ≥ 10 × moduleWidth` **et** `widthDots − x − barsWidth ≥ 10 × moduleWidth`
    → zones de silence honorées (garanties par `TOTAL_MODULES`) ;

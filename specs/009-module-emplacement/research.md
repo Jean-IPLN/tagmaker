@@ -85,7 +85,7 @@ TOTAL_MODULES       = SYMBOL_MODULES + 20     // + zones de silence (10 + 10)
 moduleWidth         = clamp(floor(widthDots / TOTAL_MODULES), MIN, MAX)
 barsWidth           = SYMBOL_MODULES × moduleWidth
 x                   = round((widthDots − barsWidth) / 2)     // marges = zones de silence
-textHeight          = clamp(round(heightDots × 0.12), 25, 80)   // OCR-B proportionnel
+textHeight          = ceil(clamp(round(heightDots × 0.18), 25, 110) / 28) × 28   // OCR-B quantifié (multiple de la cellule 28 dots)
 gap                 = round(textHeight × 0.15)                   // séparation barres/texte
 blockHeight         = round(0.9 × heightDots)                // convention 90 %
 barHeight           = max(blockHeight − textHeight − gap, MIN_BAR_HEIGHT_DOTS)
@@ -95,11 +95,19 @@ wCell               = round(textHeight × 0.48)            // ratio largeur/haut
 advance             = round(textHeight × 0.52)            // resserrement inter-caractères
 xText               = x + round((barsWidth − len(code) × advance) / 2)   // centrage
 ```
+- **Quantification OCR-B (précision 014)** : police **E = bitmap fixe
+  28×15 dots @203 dpi** (table des polices standard Zebra), « expandable up to
+  10 times » mais la hauteur `^AEN` n'est appliquée que par **multiples de la
+  cellule (28)** — toute autre valeur est arrondie au multiple le plus proche
+  par le firmware. Demander le **multiple supérieur** (`ceil`) rend le texte
+  imprimé conforme au calcul :
+  - 40×25 / 75×25 : 0.18×200 = 36 → arrondi à 56 → **texte doublé** (28 → 56) ;
+  - 100×50 : 72 → 84 ; 100×150 : 110 → 112 (déjà imprimés ainsi auparavant).
 - **Bornes module** : X-dimension Code 128 ≈ 0.19–1.02 mm. À 203 dpi (1 dot =
   0.125 mm) : `MIN = 2 dots` (0.25 mm, sûr) et `MAX = 8 dots` (1.0 mm).
 - **Plancher barres** : prise recommandée min 0.25″ → `MIN_BAR_HEIGHT_DOTS =
-  51 dots` (6.38 mm). Les hauteurs réelles des formats (≥ 151 dots) le
-  dépassent largement.
+  51 dots` (6.38 mm). Les hauteurs réelles des formats (≥ 116 dots en 40×25)
+  le dépassent largement.
 - **Zone de silence** : garantie par construction — avec `moduleWidth =
   floor(widthDots/(SYMBOL+20))`, chaque marge vaut ≥ 10 modules.
 - **Texte lisible** : le champ OCR-B dédié remplace la HRI native ; il est
@@ -179,12 +187,18 @@ xText               = x + round((barsWidth − len(code) × advance) / 2)   // c
 
 ## Risques résiduels (acceptés)
 
-- **Rendu OCR-B par format** : validé en réel sur 40×25 et 75×25 (Zebra
-  ZD420) ; 100×50 et 100×150 restent à confirmer physiquement (les invariants
-  géométriques garantissent le non-chevauchement par construction — tests).
+- **Rendu OCR-B par format (rév. 014)** : validé en réel sur 40×25 et 75×25
+  (Zebra ZD420) avec texte 56 dots (doublé) ; 100×50 (84) et 100×150 (112)
+  restent à **reconfirmer** physiquement (barres re-calées sur les 90 %).
+  Invariants géométriques garantissent le non-chevauchement par construction
+  (tests 4 formats + format futur 50×30).
 - **Largeur max du texte** : pour 4 caractères, `textWidth = 4 × advance` reste
-  très inférieur à `barsWidth` (52 vs 237 dots min) → pas de débordement sous
-  le symbole ; garde-fou automatique sur le format de référence 40×25.
+  très inférieur à `barsWidth` (116 vs 237 dots min en 40×25) → pas de
+  débordement sous le symbole ; garde-fou automatique sur le format de
+  référence 40×25.
+- **OCR-B dilaté hors spéc.** Zebra (« fonts E/H not considered in-spec when
+  expanded ») : accepté — le rendu visuel validé prime (comme pour les grands
+  formats 84/112 déjà imprimés).
 - **Renommage léger du `radio` shadcn** : le Switch (Base UI) doit être ajouté
   au kit local ; si le générateur shadcn produit une API différente de
   `select.tsx`, on suit l'API générée (contrat UI local).
