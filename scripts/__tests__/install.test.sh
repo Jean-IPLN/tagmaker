@@ -145,6 +145,33 @@ run_tests() {
     uninstall_remove_config
     expect_no_file "T021: sans --keep-config, config purgée" "$TAGMAKER_ENV"
 
+    # --- T026 : installabilité npm (bug install) ---
+    # npm ci from scratch doit résoudre la pile dev sans ERESOLVE (npm 10 stricte
+    # les peer optional — conflit @types/node ^20 vs peer vitest ^22||>=24), et la
+    # racine doit déclarer un @types/node accepté par le peer de vitest.
+    saved_path="$PATH"
+    export PATH="$OLD_PATH"
+    npm_ci_resolvable="no"
+    if command -v npm >/dev/null 2>&1 && [ -f "$ROOT/package-lock.json" ]; then
+        scratch="$SANDBOX/npm-ci-resolve"
+        mkdir -p "$scratch"
+        cp "$ROOT/package.json" "$ROOT/package-lock.json" "$scratch/"
+        if npm --prefix "$scratch" ci --dry-run --no-audit --no-fund >/dev/null 2>&1; then
+            npm_ci_resolvable="yes"
+        fi
+    fi
+    expect_eq "T026: npm ci from scratch aboutit (manifest+lock cohérents)" "yes" "$npm_ci_resolvable"
+
+    types_node_range=$(node -e "console.log(require('$ROOT/package.json').devDependencies['@types/node']||'')")
+    vitest_peer=$(node -e "const l=require('$ROOT/package-lock.json'); const p=l.packages['node_modules/vitest']; process.stdout.write((p&&p.peerDependencies&&p.peerDependencies['@types/node'])||'')")
+    root_major=$(printf '%s' "$types_node_range" | sed -E 's/^[^0-9]*//')
+    vitest_major_ok="no"
+    for m in $(printf '%s' "$vitest_peer" | grep -oE '[0-9]+' | sort -u); do
+        if [ "$root_major" = "$m" ]; then vitest_major_ok="yes"; fi
+    done
+    expect_eq "T026: @types/node ^$root_major ∈ peer vitest ($vitest_peer)" "yes" "$vitest_major_ok"
+    export PATH="$saved_path"
+
     export PATH="$OLD_PATH"
     tear
 
