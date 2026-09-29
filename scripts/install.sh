@@ -62,8 +62,9 @@ OPTIONS
 
 Variables d'environnement (même priorité que les flags) : TAGMAKER_DIR,
 TAGMAKER_ENV, TAGMAKER_USER, TAGMAKER_PORT, TAGMAKER_HOST. TAGMAKER_NODE
-force le binaire Node à utiliser (sinon détection : PATH puis /usr/local/bin
-et /usr/bin, version la plus récente ≥ ${REQUIRED_NODE_MAJOR}.${REQUIRED_NODE_MINOR}).
+force le binaire Node à utiliser (sinon détection : PATH puis /usr/local/bin,
+/usr/bin, et les installs utilisateur nvm/volta/fnm — version la plus récente
+≥ ${REQUIRED_NODE_MAJOR}.${REQUIRED_NODE_MINOR}).
 Codes de sortie : 0 succès, 1 échec, 2 mauvaise utilisation.
 EOF
 }
@@ -140,14 +141,51 @@ node_candidate_sufficient() {
     [ "$min" -ge "$REQUIRED_NODE_MINOR" ]
 }
 
+# Home de l'utilisateur qui a déclenché l'installation via sudo (le PATH root
+# du secure_path exclut les Node en user-space — c'est dans SON home qu'on les
+# retrouve). Repli sur /home/$SUDO_USER si getent est absent.
+sudo_user_home() {
+    [ -n "${SUDO_USER:-}" ] || return 1
+    h=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
+    [ -n "$h" ] || h="/home/$SUDO_USER"
+    printf '%s' "$h"
+}
+
+# Installs Node en user-space des homes pertinents (nvm/volta/fnm du trigger
+# sudo, du HOME courant, et de /root) + nvm système + tarballs NodeSource.
+node_user_space_candidates() {
+    homes=""
+    [ -n "${SUDO_USER:-}" ] && homes="$homes $(sudo_user_home)"
+    [ -n "${HOME:-}" ] && homes="$homes $HOME"
+    homes="$homes /root"
+    for h in $homes; do
+        for d in "$h/.nvm/versions/node"/*/bin; do
+            case "$d" in *"*"*) continue ;; esac
+            [ -f "$d/node" ] && printf '%s\n' "$d/node"
+        done
+        for d in "$h/.local/share/fnm/node-versions"/*/installation/bin; do
+            case "$d" in *"*"*) continue ;; esac
+            [ -f "$d/node" ] && printf '%s\n' "$d/node"
+        done
+        [ -f "$h/.volta/bin/node" ] && printf '%s\n' "$h/.volta/bin/node"
+    done
+    for d in /usr/local/nvm/versions/node/*/bin /usr/local/nodejs*/bin /opt/nodejs*/bin; do
+        case "$d" in *"*"*) continue ;; esac
+        [ -f "$d/node" ] && printf '%s\n' "$d/node"
+    done
+    :
+}
+
 # Candidats Node binaires : tous les répertoires du PATH puis les emplacements
-# systèmes. Un même binaire peut sortir des deux sources — dédoublonné plus bas.
+# systèmes, puis les installations en user-space. Un même binaire peut sortir
+# des deux sources — dédoublonné plus bas.
 node_candidate_paths() {
     printf '%s\n' "$PATH" | tr ':' '\n' | while read -r dir; do
         [ -n "$dir" ] && [ -x "$dir/node" ] && printf '%s\n' "$dir/node"
     done
     [ -x /usr/local/bin/node ] && printf '%s\n' /usr/local/bin/node
     [ -x /usr/bin/node ] && printf '%s\n' /usr/bin/node
+    node_user_space_candidates
     :
 }
 
@@ -339,9 +377,18 @@ build_app() {
     appdir="$1"
     user="$2"
     log "Build production (npm ci && npm run build, en tant que ${user})..."
+    # Binaire Node résolu mais hors de portée du user service (ex. home nvm 700) :
+# échec explicite plutôt qu'un build/service qui ne démarre jamais.
     chown -R "$user:$user" "$appdir"
     node_dir=""
-    [ -n "${NODE_BIN:-}" ] && node_dir=$(dirname "$NODE_BIN")
+    if [ -n "${NODE_BIN:-}" ]; then
+        su -s /bin/sh "$user" -c "test -x '$NODE_BIN'" || {
+            printf 'ERROR: Node résolu (%s) inaccessible au user %s. Installez un Node accessible système (ex. NodeSource dans /usr/local) ou forcez TAGMAKER_NODE.\n' \
+                "$NODE_BIN" "$user" >&2
+            return 1
+        }
+        node_dir=$(dirname "$NODE_BIN")
+    fi
     if [ -n "$node_dir" ]; then
         su -s /bin/sh "$user" -c "PATH='$node_dir:\$PATH'; export PATH; npm --prefix '$appdir' ci --no-audit --no-fund && npm --prefix '$appdir' run build"
     else

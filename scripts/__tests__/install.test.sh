@@ -187,6 +187,8 @@ run_tests() {
 
     # --- T027 : résolution du binaire Node (bug node-ners) ---
     new_sandbox
+    saved_home="${HOME:-}"
+    export HOME="$SANDBOX/fakehome"
     fake18=$(make_fake_node "$SANDBOX/node18/bin" "18.19.1")
     fake20=$(make_fake_node "$SANDBOX/node20/bin" "20.19.2")
     fake24=$(make_fake_node "$SANDBOX/node24/bin" "24.13.0")
@@ -217,6 +219,28 @@ run_tests() {
     unit=$(unit_template '0.0.0.0' '3000' "$SANDBOX/app" "$SANDBOX/env" "tagmaker")
     expect_contains "T027: ExecStart utilise le binaire résolu" "$fake24" "$unit"
     unset NODE_BIN
+
+    # --- T028 : installs Node en user-space (nvm/volta/fnm) — scénario serveur
+    # « sudo + secure_path » : PATH sans nvm, mais nvm du home détecté et prioritaire.
+    tools_path="$TEST_BIN_GOOD:/usr/bin:/bin"
+    mkdir -p "$SANDBOX/fakehome/.nvm/versions/node"
+    nvm_fake=$(make_fake_node "$SANDBOX/fakehome/.nvm/versions/node/v24.13.0/bin" "24.13.0")
+
+    res=$(PATH="$tools_path" resolve_node_bin)
+    expect_eq "T028: nvm du home résolu malgré un PATH secure_path" "$nvm_fake" "$res"
+
+    volta_fake=$(make_fake_node "$SANDBOX/fakehome/.volta/bin" "24.0.0")
+    fnm_fake=$(make_fake_node "$SANDBOX/fakehome/.local/share/fnm/node-versions/v24.2.0/installation/bin" "24.2.0")
+    candidates=$(PATH="$tools_path" node_user_space_candidates)
+    expect_contains "T028: volta du home détecté" "$volta_fake" "$candidates"
+    expect_contains "T028: fnm du home détecté" "$fnm_fake" "$candidates"
+    expect_contains "T028: nvm du home détecté" "$nvm_fake" "$candidates"
+
+    empty_home="$SANDBOX/emptyhome"
+    empty_scan=$(HOME="$empty_home" node_user_space_candidates)
+    expect_eq "T028: home vide → aucune install user-space (repli apt)" "" "$empty_scan"
+
+    export HOME="$saved_home"
 
     tear
 

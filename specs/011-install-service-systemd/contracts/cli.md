@@ -44,13 +44,23 @@ cf. § Prérequis détectés).
   (RHEL/Fedora/Rocky/RHEL-likes) ; toute autre famille → erreur explicite ;
 - **Node.js ≥ 20.9** et `npm`. **Résolution** : `TAGMAKER_NODE` (si défini)
   sinon le binaire le plus récent satisfaisant le plancher, cherché dans **tous
-  les répertoires du PATH** puis `/usr/local/bin` et `/usr/bin` — la version du
-  serveur (ex. Node 24 installé en  user-space via nvm) est toujours
-  préférée au paquet apt quand elle est atteignable ; le binaire résolu est
-  **propagé** au build (`npm ci && npm run build`) et à l'unité systemd.
+  les répertoires du PATH** puis `/usr/local/bin`, `/usr/bin`, puis les
+  **installations en user-space** des homes pertinents (nvm/volta/fnm du
+  `SUDO_USER` déclencheur, du `HOME` courant et de `/root`), le nvm système
+  (`/usr/local/nvm`) et les tarballs NodeSource (`/usr/local/nodejs*`,
+  `/opt/nodejs*`) — la version du serveur (ex. Node 24 installé via nvm dans un
+  home utilisateur, y compris sous `sudo` dont le « secure_path » masque le
+  PATH utilisateur) est toujours préférée au paquet apt quand elle est
+  atteignable ; le binaire résolu est **propagé** au build (`npm ci && npm run
+  build`) et à l'unité systemd.
   Installation via le gestionnaire de paquets (apt/dnf/yum) seulement si aucun
   Node suffisant n'est atteignable ; version insuffisante → erreur avec
   instruction de mise à niveau.
+  **Accessibilité du service** : le binaire résolu doit être exécutable par le
+  user `TAGMAKER_USER` (le check `test -x` est fait au build) — un Node logé
+  dans un home fermé (nvm, droits 700) déclenche une erreur explicite invitant
+  à installer un Node accessible système (NodeSource) ou à forcer
+  `TAGMAKER_NODE`.
 
 ## Comportement `install`
 
