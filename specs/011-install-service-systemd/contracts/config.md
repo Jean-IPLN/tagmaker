@@ -4,11 +4,13 @@
 
 ## Rôle
 
-`~/.tagmaker.env` — répertoire personnel de l'utilisateur système dédié
-`tagmaker` (`useradd --create-home` → `/home/tagmaker/.tagmaker.env`) — est
-l'**unique source de vérité de configuration** de l'installation. Il est chargé
-par l'unité systemd via `EnvironmentFile` (`%h/.tagmaker.env`) et lu par
-`install.sh` lors de la génération de l'unité.
+`~/.tagmaker.env` — répertoire personnel de l'utilisateur **propriétaire** de
+l'installation : le déclencheur `sudo` sous sudo (ex. `/home/ipln/.tagmaker.env`
+sur le serveur), sinon l'utilisateur courant — est l'**unique source de vérité
+de configuration** de l'installation. Il est chargé par l'unité systemd via
+`EnvironmentFile` (chemin absolu injecté au moment de la génération) et lu par
+`install.sh` lors de la génération de l'unité. `-e`/`TAGMAKER_ENV` permet un
+chemin explicite.
 
 ## Création
 
@@ -41,8 +43,9 @@ par l'unité systemd via `EnvironmentFile` (`%h/.tagmaker.env`) et lu par
 3. **Relecture** : un changement de port/host exige
    `sudo systemctl daemon-reload && sudo systemctl restart tagmaker`
    (contrat systemd).
-4. **Purge** : `uninstall` supprime `~/.tagmaker.env` (et le home s'il devient
-   vide) ; `uninstall --keep-config` préserve le fichier.
-5. **Sécurité** : le fichier est lisible par `tagmaker` uniquement
-   (`0600`, propriétaire/groupe `tagmaker`) ; aucun secret autre que le
-   paramétrage imprimante n'y réside.
+4. **Purge** : `uninstall` supprime `~/.tagmaker.env` (le home de l'utilisateur
+   n'est **jamais** supprimé — seul le home dédié `tagmaker`, s'il est devenu
+   vide, est retiré) ; `uninstall --keep-config` préserve le fichier.
+5. **Sécurité** : le fichier est lisible par le propriétaire uniquement
+   (`0600`, propriétaire/groupe = utilisateur propriétaire) ; aucun secret
+   autre que le paramétrage imprimante n'y réside.

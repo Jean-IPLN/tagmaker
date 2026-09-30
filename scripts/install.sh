@@ -28,12 +28,32 @@ user_home() {
     if [ -n "$h" ]; then printf '%s' "$h"; else printf '%s' "/home/$1"; fi
 }
 
-# Fichier de configuration : ~/.tagmaker.env (défaut) ou TAGMAKER_ENV explicite.
+# Utilisateur propriétaire de l'installation : le déclencheur sudo sous sudo,
+# l'utilisateur courant sinon (son home est voulu pour la config appliquée).
+owner_user() {
+    if [ -n "${SUDO_USER:-}" ]; then
+        printf '%s' "$SUDO_USER"
+    else
+        id -un
+    fi
+}
+
+# Home de l'utilisateur propriétaire (getent, repli /home/<user>).
+owner_home() {
+    if [ -n "${SUDO_USER:-}" ]; then
+        sudo_user_home
+    else
+        user_home "$(id -un)"
+    fi
+}
+
+# Fichier de configuration : ~/.tagmaker.env du HOME de l'utilisateur
+# propriétaire (SUDO_USER sous sudo), ou TAGMAKER_ENV explicite.
 env_file_path() {
     if [ -n "${TAGMAKER_ENV:-}" ]; then
         printf '%s' "$TAGMAKER_ENV"
     else
-        printf '%s/.tagmaker.env' "$(user_home "$TAGMAKER_USER")"
+        printf '%s/.tagmaker.env' "$(owner_home)"
     fi
 }
 
@@ -49,7 +69,8 @@ COMMANDE (défaut : install)
 OPTIONS
   -d, --dir <CHEMIN>       dossier de l'application (défaut: /opt/tagmaker)
   -e, --env <CHEMIN>       fichier de configuration (défaut: ~/.tagmaker.env,
-                           dans le home de l'utilisateur dédié)
+                           dans le home de l'utilisateur qui lance le script,
+                           ex. /home/ipln/.tagmaker.env sous sudo)
   -u, --user <NOM>         utilisateur système dédié (défaut: tagmaker)
   -p, --port <PORT>        port d'écoute (défaut: 3000)
   -h, --host <ADRESSE>     adresse d'écoute (défaut: 0.0.0.0)
@@ -302,7 +323,7 @@ EOF
         printf 'TAGMAKER_PORT=%s\n' "$TAGMAKER_PORT" >> "$file"
     fi
 
-    chown "$TAGMAKER_USER:$TAGMAKER_USER" "$file" 2>/dev/null || true
+    chown "$(owner_user):$(owner_user)" "$file" 2>/dev/null || true
     chmod 600 "$file"
 }
 
@@ -343,6 +364,8 @@ User=${user}
 Group=${user}
 WorkingDirectory=${appdir}
 EnvironmentFile=${envfile}
+Environment=HOME=/run/tagmaker
+RuntimeDirectory=tagmaker
 ExecStart=${node_bin} ${appdir}/node_modules/next/dist/bin/next start -H ${host} -p ${port}
 Restart=on-failure
 RestartSec=3
@@ -447,9 +470,12 @@ npm_build_command() {
     appdir="$1"
     node_dir="$2"
     envfile="${3:-}"
+    build_home="${4:-}"
     build_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     [ -n "$node_dir" ] && build_path="$node_dir:$build_path"
-    printf "%s" "$(env_load_prefix "$envfile")PATH='$build_path'; export PATH SHELL=/bin/sh; npm --prefix '$appdir' ci --no-audit --no-fund && npm --prefix '$appdir' run build"
+    home_prefix=""
+    [ -n "$build_home" ] && home_prefix="HOME='$build_home'; export HOME; "
+    printf "%s" "$(env_load_prefix "$envfile")${home_prefix}PATH='$build_path'; export PATH SHELL=/bin/sh; npm --prefix '$appdir' ci --no-audit --no-fund && npm --prefix '$appdir' run build"
 }
 
 build_app() {
@@ -487,8 +513,14 @@ build_app() {
             chmod 600 "$env_snippet"
         fi
     fi
-    su -s /bin/sh "$user" -c "$(npm_build_command "$appdir" "$node_dir" "$env_snippet")"
+    # HOME writable éphémère pour npm/Node (le compte n'a pas de home persistant)
+    build_home="${TMPDIR:-/tmp}/tagmaker-home-$user-$$"
+    mkdir -p "$build_home"
+    chown -R "$user:$user" "$build_home"
+    chmod 700 "$build_home"
+    su -s /bin/sh "$user" -c "$(npm_build_command "$appdir" "$node_dir" "$env_snippet" "$build_home")"
     rc=$?
+    rm -rf "$build_home"
     [ -n "$env_snippet" ] && rm -f "$env_snippet"
     return $rc
 }
@@ -496,13 +528,15 @@ build_app() {
 # ---------------------------------------------------------------------------
 # Utilisateur dédié + placement de l'application (FR-009, data-model)
 # ---------------------------------------------------------------------------
+# Utilisateur système dédié — SANS home persistant (nologin, caches éphémères :
+# HOME injecté au build et via RuntimeDirectory au runtime). FR-009, data-model.
 create_service_user() {
     user="$1"
     if id "$user" >/dev/null 2>&1; then
         log "Utilisateur système $user déjà présent."
     else
-        useradd --system --create-home --shell /usr/sbin/nologin "$user"
-        log "Utilisateur système non privilégié $user créé (home $(user_home "$user"))."
+        useradd --system --shell /usr/sbin/nologin --no-create-home "$user"
+        log "Utilisateur système non privilégié $user créé (sans home)."
     fi
 }
 
@@ -632,8 +666,17 @@ uninstall_remove_unit() {
 
 uninstall_remove_user() {
     if id "$TAGMAKER_USER" >/dev/null 2>&1; then
-        userdel "$TAGMAKER_USER" 2>/dev/null || true
-        log "Utilisateur $TAGMAKER_USER supprimé."
+        if userdel "$TAGMAKER_USER" 2>/dev/null; then
+            if id "$TAGMAKER_USER" >/dev/null 2>&1; then
+                warn "Compte $TAGMAKER_USER toujours présent malgré userdel — suppression manuelle : userdel $TAGMAKER_USER."
+            else
+                log "Utilisateur $TAGMAKER_USER supprimé."
+            fi
+        else
+            warn "Impossible de supprimer $TAGMAKER_USER (processus actif ?) — suppression manuelle : userdel $TAGMAKER_USER."
+        fi
+    else
+        log "Aucun utilisateur $TAGMAKER_USER à supprimer (déjà absent)."
     fi
 }
 
@@ -654,8 +697,11 @@ uninstall_remove_config() {
         rm -f "$envfile"
         log "Configuration $envfile purgée."
     fi
+    # Ne purge jamais un home d'utilisateur réel : seul le home dédié au user
+    # service, s'il est devenu vide, est retiré.
     cfgdir=$(dirname "$envfile")
-    if [ -d "$cfgdir" ] && [ -z "$(ls -A "$cfgdir" 2>/dev/null)" ]; then
+    if [ "$cfgdir" = "$(user_home "$TAGMAKER_USER")" ] \
+        && [ -d "$cfgdir" ] && [ -z "$(ls -A "$cfgdir" 2>/dev/null)" ]; then
         rmdir "$cfgdir" 2>/dev/null || true
         log "Dossier de configuration vide supprimé : $cfgdir"
     fi
@@ -670,7 +716,7 @@ dry_run_install() {
 [DRY-RUN] install de TagMaker — aucune modification effectuée.
   Prérequis : distro + Node.js ≥ ${REQUIRED_NODE_MAJOR}.${REQUIRED_NODE_MINOR} (apt/dnf/yum)
   Node détecté : $node_hint
-  Utilisateur : $TAGMAKER_USER (dédié, non privilégié, home créé)
+  Utilisateur : $TAGMAKER_USER (dédié, non privilégié, sans home — caches éphémères)
   Config : $(env_file_path) (~/.tagmaker.env, créée depuis .env.example si absent)
   Dossier : $TAGMAKER_DIR + build production (npm ci && npm run build, FR-003)
   Unité : $TAGMAKER_UNIT puis systemctl enable --now $SERVICE_NAME

@@ -18,7 +18,8 @@ COMMANDE (défaut : install)
 OPTIONS
   -d, --dir <CHEMIN>       dossier de l'application (défaut: /opt/tagmaker)
   -e, --env <CHEMIN>       fichier de configuration (défaut: ~/.tagmaker.env,
-                           home de l'utilisateur dédié, ex. /home/tagmaker/.tagmaker.env)
+                           home de l'utilisateur propriétaire — déclencheur sudo
+                           sous sudo, ex. /home/ipln/.tagmaker.env)
   -u, --user <NOM>         utilisateur système dédié (défaut: tagmaker)
   -p, --port <PORT>        port d'écoute (défaut: 3000)
   -h, --host <ADRESSE>     adresse d'écoute (défaut: 0.0.0.0)
@@ -70,16 +71,20 @@ cf. § Prérequis détectés).
 ## Comportement `install`
 
 1. Vérifie les droits et prérequis (installation des paquets manquants).
-2. Crée `TAGMAKER_USER` (si absent) — non privilégié, `nologin`, avec home
-   dédié (`--create-home`).
-3. Crée `~/.tagmaker.env` depuis `.env.example` **si absent** (jamais écrasé) ;
+2. Crée `TAGMAKER_USER` (si absent) — non privilégié, `nologin`, **sans home**
+   (`--no-create-home` ; caches éphémères : HOME injecté au build, et
+   `RuntimeDirectory`/`Environment=HOME=/run/tagmaker` au runtime).
+3. Crée `~/.tagmaker.env` **dans le home de l'utilisateur propriétaire**
+   (déclencheur sudo sous sudo, sinon utilisateur courant) depuis
+   `.env.example` **si absent** (jamais écrasé) ;
    applique host/port par défaut du contrat config.
 4. Copie le dépôt vers `TAGMAKER_DIR` (propriétaire `TAGMAKER_USER`) — ou
    l'utilise en place si c'est déjà le dossier de travail.
 5. Exécute `npm ci && npm run build` **en tant que** `TAGMAKER_USER`, dans un
    contexte `su` qui **charge au préalable la config applicative**
-   (`~/.tagmaker.env` — lecture conditionnelle, même source que le runtime
-   `EnvironmentFile`) ainsi qu'un **PATH autonome** : répertoires système
+   (`~/.tagmaker.env` du home de l'utilisateur propriétaire — lecture
+   conditionnelle, même source que le runtime `EnvironmentFile`) ainsi qu'un
+   **PATH autonome** : répertoires système
    (`/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`) plus le
    répertoire du binaire Node résolu. Raisons : les modules serveur
    (`lib/env.ts`) sont évalués par `next build` et exigent les variables
@@ -118,8 +123,9 @@ enregistrée/démarrée, dossier existant intact (FR-003).
 1. `systemctl disable --now tagmaker` (ignore l'absence d'unité).
 2. Supprime `/etc/systemd/system/tagmaker.service` + `daemon-reload`.
 3. Supprime `TAGMAKER_USER` et `TAGMAKER_DIR` (données du dossier).
-4. Supprime `~/.tagmaker.env` (et le home dédié s'il devient vide), sauf
-   `--keep-config`.
+4. Supprime `~/.tagmaker.env` (le home de l'utilisateur propriétaire n'est
+   jamais supprimé ; seul le home dédié `tagmaker` devenu vide est retiré),
+   sauf `--keep-config`.
 5. Sortie : récapitulatif des éléments supprimés (SC-005).
 
 Toujours idempotent : `uninstall` sur une installation absente réussit (code 0)

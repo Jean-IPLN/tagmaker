@@ -85,12 +85,14 @@ curl -sI http://<ip>:3000 | head -1 # → HTTP 200
 ## 7. Mise à jour préservant la configuration (US3)
 
 ```sh
-sudo tee -a /home/tagmaker/.tagmaker.env >/dev/null <<EOF
+sudo tee -a /home/<USER>/.tagmaker.env >/dev/null <<EOF
 TAGMAKER_PORT=3100
 EOF
 git -C /opt/tagmaker pull        # ou : git pull dans le clone d'origine
 bash scripts/install.sh          # ré-exécution (ou .setup in place)
 ```
+
+`<USER>` = l'utilisateur propriétaire (déclencheur sudo ; ex. `/home/ipln/.tagmaker.env` au serveur).
 
 **Attendu** : `TAGMAKER_PORT=3100` et les `ZPL_*` personnalisés toujours
 présents ; service actif sur le nouveau port
@@ -107,7 +109,7 @@ sh scripts/install.sh --uninstall
 systemctl status tagmaker 2>&1 | grep -q "Loaded: not-found" || echo KO
 ls /opt/tagmaker 2>/dev/null && echo KO   # → aucune sortie OK
 pgrep -f next || echo KO                  # → aucun processus orphelin
-ls /home/tagmaker/.tagmaker.env 2>/dev/null && echo KO   # → config purgée
+ls /home/<USER>/.tagmaker.env 2>/dev/null && echo KO   # → config purgée
 ```
 
 **Attendu** : aucune ligne `KO` — service retiré, dossier, config et processus

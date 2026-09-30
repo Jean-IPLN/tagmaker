@@ -15,7 +15,9 @@ réseau local par défaut.
 | `Description` | `TagMaker — impression d'étiquettes` |
 | `User` / `Group` | `tagmaker` / `tagmaker` |
 | `WorkingDirectory` | `/opt/tagmaker` |
-| `EnvironmentFile` | `%h/.tagmaker.env` (home de `tagmaker`, soit `/home/tagmaker/.tagmaker.env`) |
+| `EnvironmentFile` | `<chemin>/.tagmaker.env` du home de l'utilisateur propriétaire (déclencheur sudo sous sudo, ex. `/home/ipln/.tagmaker.env`, sinon utilisateur courant) — hérédité de `env_file_path` |
+| `Environment` | `HOME=/run/tagmaker` (le compte d'exécution n'a pas de home persistant) |
+| `RuntimeDirectory` | `tagmaker` (`/run/tagmaker`, writable par le service, purgé au boot) |
 | `ExecStart` | `<node> <app>/node_modules/next/dist/bin/next start -H <host> -p <port>` |
 | `Restart` | `on-failure` |
 | `RestartSec` | `3` |

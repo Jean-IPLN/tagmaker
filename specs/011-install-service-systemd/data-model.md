@@ -8,10 +8,12 @@ Le déploiement produit quatre persistants système :
 
 ```text
 /opt/tagmaker/                  # code + build de l'application (propriétaire: tagmaker)
-~tagmaker/.tagmaker.env         # configuration de l'application (EnvironmentFile)
-                                #   (= /home/tagmaker/.tagmaker.env, home dédié tagmaker)
+~/.tagmaker.env                  # configuration (EnvironmentFile), home de
+                                 #   l'utilisateur propriétaire = déclencheur sudo
+                                 #   sous sudo (ex. /home/ipln/.tagmaker.env)
 /etc/systemd/system/tagmaker.service  # unité systemd
-utilisateur système "tagmaker"  # compte d'exécution non privilégié (home créé)
+utilisateur système "tagmaker"  # compte d'exécution non privilégié, sans home
+                                # (caches : /run/tagmaker via RuntimeDirectory)
 ```
 
 ## Entités
@@ -32,8 +34,9 @@ utilisateur système "tagmaker"  # compte d'exécution non privilégié (home cr
 
 - **Représente** : le paramétrage d'exploitation de l'application.
 - **Emplacement** : `~/.tagmaker.env`, le `~` étant le répertoire personnel de
-  l'utilisateur dédié `tagmaker` (`useradd --create-home` →
-  `/home/tagmaker/.tagmaker.env`). Un chemin explicite via `-e`/`TAGMAKER_ENV`
+  l'utilisateur **propriétaire** (déclencheur sudo sous sudo, ex.
+  `/home/ipln/.tagmaker.env` ; sinon utilisateur courant). Un chemin explicite
+  via `-e`/`TAGMAKER_ENV`
   reste possible.
 - **Genre** : fichier clé-valeur utilisable comme `EnvironmentFile` systemd,
   produit à partir de `.env.example` du dépôt.

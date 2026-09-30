@@ -58,10 +58,20 @@ run_tests() {
     expect_contains "T007: jamais écrasé (marqueur préservé)" '# marqueur opérateur' "$(cat "$cfg")"
     tear
 
-    # env_file_path : défaut ~/.tagmaker.env dans le home de l'utilisateur dédié
+    # env_file_path : défaut ~/.tagmaker.env dans le home de l'utilisateur
+    # propriétaire (SUDO_USER sous sudo, home courant sinon)
     saved_env="${TAGMAKER_ENV:-}"
     unset TAGMAKER_ENV
-    expect_eq "T007: défaut env_file_path ~/.tagmaker.env" "/home/tagmaker/.tagmaker.env" "$(env_file_path)"
+    saved_sudo="${SUDO_USER:-}"
+    export SUDO_USER="oplane"
+    expect_eq "T007: défaut env_file_path (SUDO_USER) → home du déclencheur" "/home/oplane/.tagmaker.env" "$(env_file_path)"
+    unset SUDO_USER
+    sav_home="$HOME"
+    export HOME="$SANDBOX/monhome"
+    real_home=$(user_home "$(id -un)")
+    expect_eq "T007: défaut sans sudo → home réel (passwd), pas \$HOME" "$real_home/.tagmaker.env" "$(env_file_path)"
+    export HOME="$sav_home"
+    if [ -n "$saved_sudo" ]; then export SUDO_USER="$saved_sudo"; fi
     TAGMAKER_ENV="$saved_env"
     export TAGMAKER_ENV
     expect_eq "T007: override TAGMAKER_ENV" "$saved_env" "$(env_file_path)"
@@ -75,6 +85,8 @@ run_tests() {
         'Group=tagmaker' \
         'WorkingDirectory=/opt/tagmaker' \
         'EnvironmentFile=/home/tagmaker/.tagmaker.env' \
+        'Environment=HOME=/run/tagmaker' \
+        'RuntimeDirectory=tagmaker' \
         'next start -H 0.0.0.0 -p 3000' \
         'Restart=on-failure' \
         'RestartSec=3' \
@@ -157,6 +169,31 @@ run_tests() {
     keep_config=no
     uninstall_remove_config
     expect_no_file "T021: sans --keep-config, config purgée" "$TAGMAKER_ENV"
+
+    # --- T022 : compte dédié SANS home (option A) ---
+    # useradd sans --create-home ; HOME éphémère injecté au build ; RuntimeDirectory
+    # côté service (le compte n'a pas de home persistant).
+    new_sandbox
+    svc_nohome="svc_nohome_$$"
+    create_service_user "$svc_nohome"
+    calls_log="$TAGMAKER_STUB_LOG/calls.log"
+    expect_contains "T022: useradd sans --create-home" "useradd --system --shell /usr/sbin/nologin --no-create-home $svc_nohome" "$(cat "$calls_log")"
+
+    boot_home="$SANDBOX/buildhome"
+    cmd_home=$(npm_build_command "/opt/tagmaker" "$(dirname "$fake_node")" "" "$boot_home")
+    expect_contains "T022: HOME éphémère injecté au build" "HOME='$boot_home'; export HOME;" "$cmd_home"
+    cmd_nohome=$(npm_build_command "/opt/tagmaker" "$(dirname "$fake_node")" "")
+    case "$cmd_nohome" in *"HOME='"*) home_hit="yes" ;; *) home_hit="no" ;; esac
+    expect_eq "T022: pas de HOME si non fourni" "no" "$home_hit"
+
+    # --- T023 : uninstall — le compte est réellement retiré ---
+    # userdel stub réussit pour un compte tagmaker* ; ici compte absent → aucun userdel.
+    export TAGMAKER_USER="svc_absent_$$"
+    before_count=$(grep -c '^userdel' "$TAGMAKER_STUB_LOG/calls.log" 2>/dev/null || printf '0')
+    uninstall_remove_user
+    after_count=$(grep -c '^userdel' "$TAGMAKER_STUB_LOG/calls.log" || printf '0')
+    expect_eq "T023: compte absent → aucun userdel" "$before_count" "$after_count"
+    export TAGMAKER_USER="tagmaker_test_$$"
 
     # --- T026 : installabilité npm (bug install) ---
     # npm ci from scratch doit résoudre la pile dev sans ERESOLVE (npm 10 stricte
