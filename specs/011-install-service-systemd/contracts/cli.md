@@ -77,11 +77,14 @@ cf. § Prérequis détectés).
 4. Copie le dépôt vers `TAGMAKER_DIR` (propriétaire `TAGMAKER_USER`) — ou
    l'utilise en place si c'est déjà le dossier de travail.
 5. Exécute `npm ci && npm run build` **en tant que** `TAGMAKER_USER`, dans un
-   contexte `su` au **PATH autonome** : répertoires système
+   contexte `su` qui **charge au préalable la config applicative**
+   (`~/.tagmaker.env` — lecture conditionnelle, même source que le runtime
+   `EnvironmentFile`) ainsi qu'un **PATH autonome** : répertoires système
    (`/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`) plus le
-   répertoire du binaire Node résolu — un compte système sans login peut avoir
-   un `$PATH` vide, ce qui rendrait `sh` (lifecycle npm) introuvable
-   (`ENOENT spawn sh`).
+   répertoire du binaire Node résolu. Raisons : les modules serveur
+   (`lib/env.ts`) sont évalués par `next build` et exigent les variables
+   `ZPL_*` ; un `$PATH` de `su` vide rendrait par ailleurs `sh` (lifecycle
+   npm) introuvable (`ENOENT spawn sh`).
 6. Écrit l'unité `/etc/systemd/system/tagmaker.service` puis
    `systemctl daemon-reload`.
 7. `systemctl enable --now tagmaker` et `systemctl start tagmaker`.

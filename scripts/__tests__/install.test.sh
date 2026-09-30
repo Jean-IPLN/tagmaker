@@ -307,6 +307,46 @@ EOF
     expect_eq "T030: PATH complet → lifecycle npm OK (contrôle positif)" "ok" "$pos"
     export PATH="$saved_path3"
 
+    # --- T031 : config applicative chargée au build (bug build-env-missing) ---
+    # next build évalue lib/env.ts (ZPL_*) : la config dotenv doit être minée
+    # dans l'environnement du build, comme le fait le runtime systemd.
+    envcfg="$SANDBOX/tagmaker.env"
+    cat > "$envcfg" <<'EOF'
+# Imprimante ZPL (thermique, port raw TCP 9100)
+ZPL_PRINTER_HOST=192.168.1.63
+ZPL_PRINTER_PORT=9100
+
+# Formats de papier : valeurs à espaces non quotées (comme .env.example)
+ZPL_PAPER_SIZES=40x25, 75x25, 100x50, 100x150
+ZPL_SCAN_SUBNET=192.168.1.0
+EOF
+
+    # Render dotenv → extraits export POSIX (node réel, comme au build)
+    envsnippet="$SANDBOX/tagmaker-build-env.sh"
+    render_node=$(command -v node)
+    if render_env_exports "$envcfg" "$envsnippet" "$render_node"; then rend="ok"; else rend="ko"; fi
+    expect_eq "T031: render_env_exports rc0" "ok" "$rend"
+    expect_file "T031: snippet converti écrit" "$envsnippet"
+    expect_contains "T031: valeur à espaces préservée (JSON quoté)" 'export ZPL_PAPER_SIZES="40x25, 75x25, 100x50, 100x150"' "$(cat "$envsnippet")"
+    comment_count=$(grep -c '^#' "$envsnippet" || true)
+    expect_eq "T031: commentaires ignorés par le renderer" "0" "$comment_count"
+
+    loaded=$(sh -c ". '$envsnippet'; printf '%s' \"\$ZPL_PAPER_SIZES\"")
+    expect_eq "T031: snippet sourcé → valeur à espaces intègre" "40x25, 75x25, 100x50, 100x150" "$loaded"
+
+    cmd_env=$(npm_build_command "/opt/tagmaker" "$(dirname "$fake_node")" "$envsnippet")
+    expect_contains "T031: build mine la config (snippet)" "if [ -r '$envsnippet' ]" "$cmd_env"
+    expect_contains "T031: source du snippet via ." ". '$envsnippet'" "$cmd_env"
+
+    cmd_noenv=$(npm_build_command "/opt/tagmaker" "$(dirname "$fake_node")" "")
+    case "$cmd_noenv" in *"[ -r '"*) noenv_hit="yes" ;; *) noenv_hit="no" ;; esac
+    expect_eq "T031: env vide → pas de source" "no" "$noenv_hit"
+
+    chmod 000 "$envsnippet"
+    guarded=$(sh -c "if [ -r '$envsnippet' ]; then . '$envsnippet'; fi; printf '%s' ok")
+    expect_eq "T031: fichier illisible → skip silencieux" "ok" "$guarded"
+    chmod 600 "$envsnippet"
+
     export PATH="$OLD_PATH"
     tear
 

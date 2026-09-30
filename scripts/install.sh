@@ -417,15 +417,39 @@ node_open_service_access() {
     done
 }
 
+# Render la config applicative (.env, format dotenv) en extraits `export` POSIX
+# sûrs — les valeurs du .env.example contiennent des espaces non quotés
+# (`ZPL_PAPER_SIZES=40x25, 75x25, …`) invalides en shell brut. Node est garanti
+# présent au build (ensure_prereqs) ; JSON.stringify émule le parser dotenv.
+render_env_exports() {
+    envfile="$1"
+    outfile="$2"
+    node_bin="${3:-node}"
+    "$node_bin" \
+        -e 'const fs=require("fs");const t=fs.readFileSync(process.argv[1],"utf8");const o=[];for(const raw of t.split(/\r?\n/)){const l=raw.trim();if(l===""||l.startsWith("#"))continue;const i=l.indexOf("=");if(i<=0)continue;const k=l.slice(0,i).trim();let v=l.slice(i+1).trim();if(/^["\x27]/.test(v)&&/["\x27]$/.test(v))v=v.slice(1,-1);o.push("export "+k+"="+JSON.stringify(v));}fs.writeFileSync(process.argv[2],o.join("\n")+"\n",{mode:0o600});' \
+        "$envfile" "$outfile"
+}
+
+# Préfixe de chaîne chargeant la config (snippet POSIX `export KEY="…"` généré
+# par render_env_exports) dans l'environnement du build — même source de vérité
+# que le runtime systemd (EnvironmentFile). Lecture conditionnelle.
+env_load_prefix() {
+    envfile="$1"
+    if [ -n "$envfile" ]; then
+        printf "%s" "if [ -r '$envfile' ]; then . '$envfile'; fi; "
+    fi
+}
+
 # Commande `su` du build npm, avec un PATH autonome — indépendant du PATH ambiant
 # de `su` (un compte système sans login peut avoir $PATH vide → `sh` introuvable
 # pour le lifecycle npm, `ENOENT spawn sh`).
 npm_build_command() {
     appdir="$1"
     node_dir="$2"
+    envfile="${3:-}"
     build_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     [ -n "$node_dir" ] && build_path="$node_dir:$build_path"
-    printf "%s" "PATH='$build_path'; export PATH SHELL=/bin/sh; npm --prefix '$appdir' ci --no-audit --no-fund && npm --prefix '$appdir' run build"
+    printf "%s" "$(env_load_prefix "$envfile")PATH='$build_path'; export PATH SHELL=/bin/sh; npm --prefix '$appdir' ci --no-audit --no-fund && npm --prefix '$appdir' run build"
 }
 
 build_app() {
@@ -447,7 +471,26 @@ build_app() {
         }
         node_dir=$(dirname "$NODE_BIN")
     fi
-    su -s /bin/sh "$user" -c "$(npm_build_command "$appdir" "$node_dir")"
+
+    # Config applicative (dotenv) rendue en snippet POSIX sûr, sourcé dans le
+    # contexte su — les valeurs à espaces du .env.example ne sont pas du POSIX.
+    envfile=$(env_file_path)
+    env_snippet=""
+    node_bin="${NODE_BIN:-node}"
+    if [ -n "$envfile" ] && [ -r "$envfile" ]; then
+        env_snippet="${TMPDIR:-/tmp}/tagmaker-build-env-$$.sh"
+        if ! render_env_exports "$envfile" "$env_snippet" "$node_bin" 2>/dev/null; then
+            log "Config présente mais non convertible (Node indisponible ?) : build sans elle."
+            env_snippet=""
+        else
+            chown "$user:$user" "$env_snippet" 2>/dev/null || true
+            chmod 600 "$env_snippet"
+        fi
+    fi
+    su -s /bin/sh "$user" -c "$(npm_build_command "$appdir" "$node_dir" "$env_snippet")"
+    rc=$?
+    [ -n "$env_snippet" ] && rm -f "$env_snippet"
+    return $rc
 }
 
 # ---------------------------------------------------------------------------
