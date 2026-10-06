@@ -1,17 +1,19 @@
 import { computeBarcodeLayout } from "@/lib/zpl/layout";
+import { computeRotatedEan13Box } from "@/lib/zpl/rotated-layout";
 
 export interface BuildEan13ZplInput {
   ean13: string;
   quantity: number;
   widthDots: number;
   heightDots: number;
+  rotated?: boolean;
 }
 
-const DATA_MODULES = 95;
+export const DATA_MODULES = 95;
 const QUIET_LEFT_MODULES = 11;
 const QUIET_RIGHT_MODULES = 7;
 const TOTAL_MODULES = DATA_MODULES + QUIET_LEFT_MODULES + QUIET_RIGHT_MODULES;
-const MIN_MODULE_WIDTH = 2;
+export const MIN_MODULE_WIDTH = 2;
 const MAX_MODULE_WIDTH = 5;
 const TEXT_HEIGHT_DOTS = 25;
 const TARGET_HEIGHT_COVERAGE = 0.9;
@@ -22,12 +24,13 @@ export function buildEan13Zpl({
   quantity,
   widthDots,
   heightDots,
+  rotated = false,
 }: BuildEan13ZplInput): string {
   const dataDigits = ean13.slice(0, 12);
 
-  const { moduleWidth, x, barHeight, y } = computeBarcodeLayout({
-    widthDots,
-    heightDots,
+  const layout = computeBarcodeLayout({
+    widthDots: rotated ? heightDots : widthDots,
+    heightDots: rotated ? widthDots : heightDots,
     totalModules: TOTAL_MODULES,
     symbolModules: DATA_MODULES,
     minModuleWidth: MIN_MODULE_WIDTH,
@@ -37,12 +40,19 @@ export function buildEan13Zpl({
     minBarHeightDots: MIN_BAR_HEIGHT_DOTS,
   });
 
+  const box = rotated
+    ? computeRotatedEan13Box(widthDots, heightDots, layout)
+    : null;
+  const barcodeField = rotated
+    ? `^FO${box?.x},${box?.y}^BEB,${box?.barHeight},Y,N`
+    : `^FO${layout.x},${layout.y}^BEN,${layout.barHeight},Y,N`;
+
   return [
     "^XA",
     `^PW${widthDots}^LL${heightDots}`,
     "^LH0,0",
-    `^BY${moduleWidth},3,${barHeight}`,
-    `^FO${x},${y}^BEN,${barHeight},Y,N`,
+    `^BY${layout.moduleWidth},3,${layout.barHeight}`,
+    barcodeField,
     `^FD${dataDigits}^FS`,
     `^PQ${quantity}`,
     "^XZ",

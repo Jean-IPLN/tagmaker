@@ -27,6 +27,8 @@ const printerAddressField = z
   .ipv4({ error: "L'adresse IPv4 de l'imprimante est invalide" })
   .optional();
 
+const rotatedField = z.boolean().optional();
+
 const locationCodeField = z
   .string({ error: "Le code emplacement est requis" })
   .regex(
@@ -80,6 +82,7 @@ const singleSchema = z
       .max(1000, "La quantité ne peut pas dépasser 1000"),
     paperId: paperIdField,
     printerAddress: printerAddressField,
+    rotated: rotatedField,
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -112,6 +115,7 @@ const rangeSchema = z
       ),
     paperId: paperIdField,
     printerAddress: printerAddressField,
+    rotated: rotatedField,
   })
   .strict()
   .superRefine((data, ctx) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { SidebarFooter } from "@/components/ui/sidebar";
 import {
@@ -17,7 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { ArrowClockwise, CircleNotch, Warning } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { ArrowClockwise, CircleNotch, Warning, DeviceRotate } from "@phosphor-icons/react";
 import type { PaperSize } from "@/lib/paper-sizes";
 import type { PrinterDevice } from "@/lib/printer/discovery";
 import {
@@ -29,6 +30,7 @@ import { cn } from "cn";
 export interface SettingsFooterProps {
   paperSizes: PaperSize[];
   defaultPaperId: string;
+  rotationEnabledPaperIds?: string[];
 }
 
 type PrinterScanState = "idle" | "scanning" | "done";
@@ -36,31 +38,62 @@ type PrinterScanState = "idle" | "scanning" | "done";
 export function SettingsFooter({
   paperSizes,
   defaultPaperId,
+  rotationEnabledPaperIds,
 }: SettingsFooterProps) {
   const [paperId, setPaperId] = useState(defaultPaperId);
   const [printerAddress, setPrinterAddress] = useState<string | null>(null);
   const [printerScan, setPrinterScan] = useState<PrinterScanState>("idle");
   const [printers, setPrinters] = useState<PrinterDevice[]>([]);
+  const [rotated, setRotated] = useState(false);
+
+  const rotationEnabledIds = useMemo(
+    () => rotationEnabledPaperIds ?? paperSizes.map((size) => size.id),
+    [rotationEnabledPaperIds, paperSizes]
+  );
+
+  function isRotationEnabled(paper: string): boolean {
+    return rotationEnabledIds.includes(paper);
+  }
 
   useEffect(() => {
     const settings = readPrintSettings();
-    const cookiePaperId = settings.paperId;
-    if (cookiePaperId && paperSizes.some((size) => size.id === cookiePaperId)) {
-      // sync du cookie (lisible uniquement côté client) vers l'état au montage
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPaperId(cookiePaperId);
-    }
+    const cookiePaperId =
+      settings.paperId && paperSizes.some((size) => size.id === settings.paperId)
+        ? settings.paperId
+        : defaultPaperId;
+    // sync du cookie (lisible uniquement côté client) vers l'état au montage
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPaperId(cookiePaperId);
     if (settings.printerAddress) {
       setPrinterAddress(settings.printerAddress);
     }
-  }, [paperSizes]);
+    const rotatable = rotationEnabledIds.includes(cookiePaperId);
+    setRotated(settings.rotated === true && rotatable);
+    if (settings.rotated === true && !rotatable) {
+      writePrintSettings({ rotated: false });
+    }
+  }, [paperSizes, rotationEnabledIds, defaultPaperId]);
 
   function handlePaperChange(value: string | null) {
     if (!value) {
       return;
     }
     setPaperId(value);
+    if (!isRotationEnabled(value)) {
+      setRotated(false);
+      writePrintSettings({ paperId: value, rotated: false });
+      return;
+    }
     writePrintSettings({ paperId: value });
+  }
+
+  function handleOrientationChange() {
+    if (!isRotationEnabled(paperId)) {
+      return;
+    }
+    const newValue = !rotated;
+    setRotated(newValue);
+    writePrintSettings({ rotated: newValue });
   }
 
   function handlePrinterOpenChange(open: boolean) {
@@ -120,9 +153,25 @@ export function SettingsFooter({
           items={paperItems}
         >
           <SelectLabel>Papier</SelectLabel>
-          <SelectTrigger className="data-disabled:opacity-50">
-            <SelectValue placeholder="Choisir un format" />
-          </SelectTrigger>
+          <div className="flex items-center">
+            <SelectTrigger className="flex-1 rounded-r-none border-r-0 data-disabled:opacity-50">
+              <SelectValue placeholder="Choisir un format" />
+            </SelectTrigger>
+            <Button
+              type="button"
+              size="icon"
+              variant={rotated ? "default" : "outline"}
+              aria-label="Orientation"
+              aria-pressed={rotated}
+              data-state={rotated ? "on" : "off"}
+              disabled={!isRotationEnabled(paperId)}
+              onClick={handleOrientationChange}
+              aria-disabled={!isRotationEnabled(paperId)}
+              className="h-8 rounded-l-none"
+            >
+              <DeviceRotate className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
           <SelectPortal>
             <SelectPositioner sideOffset={4}>
               <SelectPopup>
@@ -201,6 +250,7 @@ export function SettingsFooter({
             </SelectPositioner>
           </SelectPortal>
         </Select>
+
       </div>
     </SidebarFooter>
   );

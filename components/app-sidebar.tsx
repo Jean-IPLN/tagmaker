@@ -25,9 +25,14 @@ import type { PaperSize } from "@/lib/paper-sizes";
 export interface AppSidebarProps {
   paperSizes: PaperSize[];
   defaultPaperId: string;
+  rotationEnabledPaperIds?: string[];
 }
 
-export function AppSidebar({ paperSizes, defaultPaperId }: AppSidebarProps) {
+export function AppSidebar({
+  paperSizes,
+  defaultPaperId,
+  rotationEnabledPaperIds,
+}: AppSidebarProps) {
   const pathname = usePathname();
   const modules = getLabelModules();
 
@@ -65,7 +70,11 @@ export function AppSidebar({ paperSizes, defaultPaperId }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SettingsFooter paperSizes={paperSizes} defaultPaperId={defaultPaperId} />
+      <SettingsFooter
+        paperSizes={paperSizes}
+        defaultPaperId={defaultPaperId}
+        rotationEnabledPaperIds={rotationEnabledPaperIds}
+      />
     </Sidebar>
   );
 }

@@ -425,6 +425,30 @@ describe("LocationForm — mode single", () => {
       )
     );
   });
+
+  it("envoie l'orientation activée dans le réglage (rotated: true)", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 2 }));
+
+    document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
+      JSON.stringify({ rotated: true })
+    )}; path=/`;
+
+    const { quantityInput, submitButton } = renderForm();
+    await fillCode("Code emplacement", VALID_BODY.code);
+    fireEvent.change(quantityInput, { target: { value: "2" } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/print/location",
+        expect.objectContaining({
+          body: JSON.stringify({ ...VALID_BODY, rotated: true }),
+        })
+      )
+    );
+  });
 });
 
 describe("LocationForm — mode range (plages multiples)", () => {
@@ -819,6 +843,35 @@ describe("LocationForm — mode range (plages multiples)", () => {
               locationType: "classic",
               ranges: [{ startCode: "1A10", endCode: "1A11" }],
               printerAddress: "192.168.1.99",
+            }),
+          })
+        )
+      );
+    });
+
+    it("envoie l'orientation activée dans le réglage (rotated: true)", async () => {
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 2 }));
+
+      document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
+        JSON.stringify({ rotated: true })
+      )}; path=/`;
+
+      const submitButton = switchToRange();
+      await fillCode("Plage 1 — début", "1A10");
+      await fillCode("Plage 1 — fin", "1A11");
+      fireEvent.click(submitButton);
+
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/print/location",
+          expect.objectContaining({
+            body: JSON.stringify({
+              mode: "range",
+              locationType: "classic",
+              ranges: [{ startCode: "1A10", endCode: "1A11" }],
+              rotated: true,
             }),
           })
         )

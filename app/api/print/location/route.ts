@@ -6,12 +6,13 @@ import type {
   RangesLocationRequest,
   SingleLocationRequest,
 } from "@/lib/location/validate";
-import {
-  DEFAULT_PAPER_SIZE,
-  parsePaperSizes,
-  sizeById,
-} from "@/lib/paper-sizes";
+import { isRotatable } from "@/lib/orientation";
+import { sizeById } from "@/lib/paper-sizes";
 import { sendToPrinter } from "@/lib/printer/send";
+import {
+  getPaperSizes,
+  resolveDimensions,
+} from "@/lib/zpl/dimensions";
 import { buildLocationZpl } from "@/lib/zpl/location";
 
 let currentPrint: Promise<{ status: "sent"; labels: number }> | null = null;
@@ -20,50 +21,30 @@ function errorResponse(status: number, code: string, message: string) {
   return Response.json({ error: { code, message } }, { status });
 }
 
-function dotsFromMm(millimeters: number): number {
-  return Math.round((millimeters * env.ZPL_RESOLUTION_DPI) / 25.4);
-}
-
-function getPaperSizes() {
-  return parsePaperSizes(env.ZPL_PAPER_SIZES, DEFAULT_PAPER_SIZE);
-}
-
-function resolveDimensions(paperId: string | undefined): {
-  widthDots: number;
-  heightDots: number;
-} {
-  const sizes = getPaperSizes();
-  const size = paperId ? sizeById(paperId, sizes) : sizes[0];
-  if (!size) {
-    throw new Error("Aucun format de papier disponible.");
-  }
-  return {
-    widthDots: dotsFromMm(size.widthMm),
-    heightDots: dotsFromMm(size.heightMm),
-  };
-}
-
 function buildSingleZpl(
   request: SingleLocationRequest,
   widthDots: number,
-  heightDots: number
+  heightDots: number,
+  rotated: boolean
 ): string {
   return buildLocationZpl({
     codes: [request.code],
     quantity: request.quantity,
     widthDots,
     heightDots,
+    rotated,
   });
 }
 
 function buildRangesZpl(
   ranges: readonly RangePair[],
   widthDots: number,
-  heightDots: number
+  heightDots: number,
+  rotated: boolean
 ): { zpl: string; labels: number } {
   const codes = expandRanges(ranges);
   return {
-    zpl: buildLocationZpl({ codes, widthDots, heightDots }),
+    zpl: buildLocationZpl({ codes, widthDots, heightDots, rotated }),
     labels: codes.length,
   };
 }
@@ -71,7 +52,8 @@ function buildRangesZpl(
 async function performPrint(
   body: SingleLocationRequest | RangesLocationRequest,
   paperId: string | undefined,
-  printerAddress: string | undefined
+  printerAddress: string | undefined,
+  rotated: boolean
 ): Promise<{ status: "sent"; labels: number }> {
   const { widthDots, heightDots } = resolveDimensions(paperId);
   const target = printerAddress
@@ -84,12 +66,13 @@ async function performPrint(
     const range = buildRangesZpl(
       body.ranges,
       widthDots,
-      heightDots
+      heightDots,
+      rotated
     );
     zpl = range.zpl;
     labels = range.labels;
   } else {
-    zpl = buildSingleZpl(body, widthDots, heightDots);
+    zpl = buildSingleZpl(body, widthDots, heightDots, rotated);
     labels = body.quantity;
   }
 
@@ -115,7 +98,7 @@ export async function POST(request: Request): Promise<Response> {
     return errorResponse(422, "VALIDATION_ERROR", message);
   }
 
-  const { paperId, printerAddress } = parsed.data;
+  const { paperId, printerAddress, rotated = false } = parsed.data;
 
   if (paperId && !sizeById(paperId, getPaperSizes())) {
     return errorResponse(
@@ -123,6 +106,18 @@ export async function POST(request: Request): Promise<Response> {
       "VALIDATION_ERROR",
       `Format de papier inconnu : ${paperId}.`
     );
+  }
+
+  if (rotated) {
+    const sizes = getPaperSizes();
+    const size = paperId ? sizeById(paperId, sizes) : sizes[0];
+    if (!size || !isRotatable(size, env.ZPL_RESOLUTION_DPI)) {
+      return errorResponse(
+        422,
+        "VALIDATION_ERROR",
+        "Format inutilisable en orientation pivotée."
+      );
+    }
   }
 
   if (currentPrint) {
@@ -133,7 +128,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const print = performPrint(parsed.data, paperId, printerAddress);
+  const print = performPrint(parsed.data, paperId, printerAddress, rotated);
   currentPrint = print;
 
   try {

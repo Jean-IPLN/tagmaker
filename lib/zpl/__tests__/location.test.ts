@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildLocationZpl } from "@/lib/zpl/location";
+import { SYMBOL_MODULES } from "@/lib/zpl/location";
 
 const FORMATS = [
   {
@@ -297,5 +298,114 @@ describe("buildLocationZpl — saisie du code (^FD)", () => {
       heightDots: 200,
     });
     expect(zpl).toContain("^FD1#D7^FS");
+  });
+});
+
+describe("buildLocationZpl — orientation pivotée (^BCB/^AEB)", () => {
+  it("40x25 : barres à gauche, texte OCR-B à droite, canvas inchangé", () => {
+    const zpl = buildLocationZpl({
+      codes: ["1A5B"],
+      quantity: 1,
+      widthDots: 320,
+      heightDots: 200,
+      rotated: true,
+    });
+
+    expect(zpl).toContain("^PW320^LL200");
+    expect(zpl).toContain("^BY2,3,191");
+    expect(zpl).toContain("^FO16,21^BCB,191,N,N,N");
+    expect(zpl).toContain("^FO220,12^AEB,84,40^FD1A5B^FS");
+    expect(zpl).not.toContain("^BCN,");
+    expect(zpl).not.toContain("^AEN,");
+  });
+
+  it("100x50 : valeurs exactes du layout roté (module, positions, texte)", () => {
+    const zpl = buildLocationZpl({
+      codes: ["1A5B"],
+      quantity: 1,
+      widthDots: 800,
+      heightDots: 400,
+      rotated: true,
+    });
+
+    expect(zpl).toContain("^BY4,3,591");
+    expect(zpl).toContain("^FO40,42^BCB,591,N,N,N");
+    expect(zpl).toContain("^FO648,84^AEB,112,54^FD1A5B^FS");
+  });
+
+  it("reste sans chevauchement ni sortie sur les formats rotables", () => {
+    const dims: Array<[number, number]> = [
+      [320, 200],
+      [600, 200],
+      [800, 400],
+      [800, 1200],
+    ];
+    for (const [widthDots, heightDots] of dims) {
+      const zpl = buildLocationZpl({
+        codes: ["1A5B"],
+        quantity: 1,
+        widthDots,
+        heightDots,
+        rotated: true,
+      });
+
+      const by = zpl.match(/\^BY(\d+),3,(\d+)/);
+      const fo = zpl.match(/\^FO(\d+),(\d+)\^BCB,(\d+),N,N,N/);
+      const text = zpl.match(/\^FO(\d+),(\d+)\^AEB,(\d+),(\d+)\^FD/);
+      if (!by || !fo || !text) {
+        throw new Error("Flux ZPL roté invalide.");
+      }
+
+      const moduleWidth = Number(by[1]);
+      const barsWidth = moduleWidth * SYMBOL_MODULES;
+      const x = Number(fo[1]);
+      const barHeight = Number(fo[3]);
+      const y = Number(fo[2]);
+      const textX = Number(text[1]);
+      const textY = Number(text[2]);
+      const textHeight = Number(text[3]);
+      const textWidth = 4 * Math.round(textHeight * 0.52);
+
+      expect(barsWidth).toBeLessThanOrEqual(heightDots - 2 * 8);
+      expect(x + barHeight).toBeLessThanOrEqual(widthDots - 8);
+      expect(textX + textHeight).toBeLessThanOrEqual(widthDots);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y + barsWidth).toBeLessThanOrEqual(heightDots);
+      expect(textY).toBeGreaterThanOrEqual(0);
+      expect(textY + textWidth).toBeLessThanOrEqual(heightDots);
+    }
+  });
+
+  it("un bloc par code en mode plage, chaque bloc en orientation B", () => {
+    const zpl = buildLocationZpl({
+      codes: ["1A10", "1A11"],
+      widthDots: 320,
+      heightDots: 200,
+      rotated: true,
+    });
+
+    const blocks = zpl.split("^XA").slice(1);
+    expect(blocks).toHaveLength(2);
+    expect(zpl).not.toContain("^PQ");
+    expect(zpl.split("^FO16,21^BCB,191,N,N,N")).toHaveLength(3);
+    expect(zpl.split("^FO220,12^AEB,84,40^FD")).toHaveLength(3);
+  });
+
+  it("rotated: false (par défaut) garde exactement le comportement actuel", () => {
+    const plain = buildLocationZpl({
+      codes: ["1A5B"],
+      quantity: 1,
+      widthDots: 320,
+      heightDots: 200,
+    });
+    expect(
+      buildLocationZpl({
+        codes: ["1A5B"],
+        quantity: 1,
+        widthDots: 320,
+        heightDots: 200,
+        rotated: false,
+      })
+    ).toBe(plain);
   });
 });

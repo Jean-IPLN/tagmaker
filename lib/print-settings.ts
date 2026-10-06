@@ -1,6 +1,7 @@
 export interface PrintSettings {
   paperId?: string;
   printerAddress?: string;
+  rotated?: boolean;
 }
 
 export const PRINT_SETTINGS_COOKIE_NAME = "tagmaker_print_settings";
@@ -35,6 +36,9 @@ export function parsePrintSettings(raw: string): PrintSettings {
   }
   if (typeof candidate.printerAddress === "string") {
     settings.printerAddress = candidate.printerAddress;
+  }
+  if ("rotated" in candidate) {
+    settings.rotated = candidate.rotated === true;
   }
   return settings;
 }

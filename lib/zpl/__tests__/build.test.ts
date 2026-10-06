@@ -199,3 +199,105 @@ describe("buildEan13Zpl — invariants géométriques (parse du flux)", () => {
     expect(barHeight).toBeGreaterThanOrEqual(minBarHeight);
   });
 });
+
+describe("buildEan13Zpl — orientation pivotée (papier en sens paysage)", () => {
+  function parseRotated(zpl: string): {
+    moduleWidth: number;
+    barHeight: number;
+    x: number;
+    y: number;
+  } {
+    const by = zpl.match(/\^BY(\d+),3,(\d+)/);
+    const fo = zpl.match(/\^FO(\d+),(\d+)\^BEB,(\d+),Y,N/);
+    if (!by || !fo) {
+      throw new Error("Flux ZPL roté invalide : layout introuvable.");
+    }
+    return {
+      moduleWidth: Number(by[1]),
+      barHeight: Number(by[2]),
+      x: Number(fo[1]),
+      y: Number(fo[2]),
+    };
+  }
+
+  it("conserve le canvas papier (^PW/^LL inchangés) et bascule en ^BEB", () => {
+    const zpl = buildEan13Zpl({
+      ean13,
+      quantity,
+      widthDots: 320,
+      heightDots: 200,
+      rotated: true,
+    });
+
+    expect(zpl).toContain("^PW320^LL200");
+    expect(zpl).toMatch(/\^FO\d+,\d+\^BEB,\d+,Y,N/);
+    expect(zpl).not.toMatch(/\^BEN,/);
+    expect(zpl).toContain(`^FD${dataDigits}^FS`);
+    expect(zpl).toContain(`^PQ${quantity}`);
+  });
+
+  it("40x25 : axe long porte la hauteur de barres, axe court la largeur", () => {
+    const zpl = buildEan13Zpl({
+      ean13,
+      quantity,
+      widthDots: 320,
+      heightDots: 200,
+      rotated: true,
+    });
+
+    expect(zpl).toContain("^BY2,3,263");
+    expect(zpl).toContain("^FO29,5^BEB,263,Y,N");
+  });
+
+  it("100x50 : valeurs exactes du layout roté (axes échangés)", () => {
+    const zpl = buildEan13Zpl({
+      ean13,
+      quantity,
+      widthDots: 800,
+      heightDots: 400,
+      rotated: true,
+    });
+
+    expect(zpl).toContain("^BY3,3,695");
+    expect(zpl).toContain("^FO53,58^BEB,695,Y,N");
+  });
+
+  it("reste sans chevauchement ni sortie sur les formats rotables", () => {
+    const dims: Array<[number, number]> = [
+      [320, 200],
+      [600, 200],
+      [800, 400],
+      [800, 1200],
+    ];
+    for (const [widthDots, heightDots] of dims) {
+      const zpl = buildEan13Zpl({
+        ean13,
+        quantity,
+        widthDots,
+        heightDots,
+        rotated: true,
+      });
+      const { moduleWidth, barHeight, x, y } = parseRotated(zpl);
+      const barsWidth = dataModules * moduleWidth;
+
+      expect(barsWidth).toBeLessThanOrEqual(heightDots);
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x + barHeight).toBeLessThanOrEqual(widthDots);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y + barsWidth).toBeLessThanOrEqual(heightDots);
+    }
+  });
+
+  it("rotated: false (par défaut) garde exactement le comportement actuel", () => {
+    const plain = buildEan13Zpl({ ean13, quantity, widthDots: 800, heightDots: 400 });
+    expect(
+      buildEan13Zpl({
+        ean13,
+        quantity,
+        widthDots: 800,
+        heightDots: 400,
+        rotated: false,
+      })
+    ).toBe(plain);
+  });
+});

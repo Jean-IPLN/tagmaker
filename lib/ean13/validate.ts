@@ -35,4 +35,5 @@ export const labelRequestSchema = z.object({
   printerAddress: z
     .ipv4({ error: "L'adresse IPv4 de l'imprimante est invalide" })
     .optional(),
+  rotated: z.boolean().optional(),
 });

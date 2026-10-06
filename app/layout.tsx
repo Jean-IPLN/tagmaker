@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { RecentModulesTracker } from "@/components/recent-modules-tracker";
 import { env } from "@/lib/env";
+import { isRotatable } from "@/lib/orientation";
 import { DEFAULT_PAPER_SIZE, parsePaperSizes } from "@/lib/paper-sizes";
 
 const spaceGrotesk = Space_Grotesk({subsets:['latin'],variable:'--font-sans'});
@@ -29,11 +30,15 @@ export const metadata: Metadata = {
 
 function getDefaultPaperSettings() {
   const paperSizes = parsePaperSizes(env.ZPL_PAPER_SIZES, DEFAULT_PAPER_SIZE);
-  return { paperSizes, defaultPaperId: paperSizes[0].id };
+  const rotationEnabledPaperIds = paperSizes
+    .filter((size) => isRotatable(size, env.ZPL_RESOLUTION_DPI))
+    .map((size) => size.id);
+  return { paperSizes, defaultPaperId: paperSizes[0].id, rotationEnabledPaperIds };
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  const { paperSizes, defaultPaperId } = getDefaultPaperSettings();
+  const { paperSizes, defaultPaperId, rotationEnabledPaperIds } =
+    getDefaultPaperSettings();
 
   return (
     <html
@@ -43,7 +48,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         <SidebarProvider>
           <RecentModulesTracker />
-          <AppSidebar paperSizes={paperSizes} defaultPaperId={defaultPaperId} />
+          <AppSidebar
+            paperSizes={paperSizes}
+            defaultPaperId={defaultPaperId}
+            rotationEnabledPaperIds={rotationEnabledPaperIds}
+          />
           <SidebarInset>
             <SiteHeader />
             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">

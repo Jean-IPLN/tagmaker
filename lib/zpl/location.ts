@@ -1,18 +1,23 @@
 import { clamp, computeBarcodeLayout } from "@/lib/zpl/layout";
+import {
+  computeRotatedLocationBox,
+  ROTATED_MARGIN_DOTS,
+} from "@/lib/zpl/rotated-layout";
 
 export interface BuildLocationZplInput {
   codes: string[];
   quantity?: number;
   widthDots: number;
   heightDots: number;
+  rotated?: boolean;
 }
 
 const CHAR_MODULES = 11;
 const CODE_128_BASE_MODULES = 35;
-const SYMBOL_MODULES = CHAR_MODULES * 4 + CODE_128_BASE_MODULES;
+export const SYMBOL_MODULES = CHAR_MODULES * 4 + CODE_128_BASE_MODULES;
 const QUIET_MODULES = 20;
 const TOTAL_MODULES = SYMBOL_MODULES + QUIET_MODULES;
-const MIN_MODULE_WIDTH = 2;
+export const MIN_MODULE_WIDTH = 2;
 const MAX_MODULE_WIDTH = 8;
 const TARGET_HEIGHT_COVERAGE = 0.9;
 const MIN_BAR_HEIGHT_DOTS = 51;
@@ -29,43 +34,56 @@ const CHAR_ADVANCE_RATIO = 0.52;
 
 function buildSingleLabel({
   code,
-  moduleWidth,
-  barsWidth,
-  x,
-  barHeight,
-  y,
-  textHeight,
-  gap,
+  layout,
   widthDots,
   heightDots,
+  rotated,
+  textHeight,
+  gap,
   quantity,
 }: {
   code: string;
-  moduleWidth: number;
-  barsWidth: number;
-  x: number;
-  barHeight: number;
-  y: number;
-  textHeight: number;
-  gap: number;
+  layout: ReturnType<typeof computeBarcodeLayout>;
   widthDots: number;
   heightDots: number;
+  rotated: boolean;
+  textHeight: number;
+  gap: number;
   quantity?: number;
 }): string {
   const wCell = Math.round(textHeight * OCR_B_WIDTH_RATIO);
   const advance = Math.round(textHeight * CHAR_ADVANCE_RATIO);
   const textWidth = code.length * advance;
-  const xText = x + Math.round((barsWidth - textWidth) / 2);
-  const yText = y + barHeight + gap;
+
+  let barcodeField: string;
+  let textField: string;
+
+  if (rotated) {
+    const box = computeRotatedLocationBox(
+      widthDots,
+      heightDots,
+      layout,
+      textHeight,
+      gap,
+      textWidth
+    );
+    barcodeField = `^FO${box.x},${box.y}^BCB,${box.barHeight},N,N,N`;
+    textField = `^FO${box.textX},${box.textY}^AEB,${textHeight},${wCell}^FD${code}^FS`;
+  } else {
+    const xText = layout.x + Math.round((layout.barsWidth - textWidth) / 2);
+    const yText = layout.y + layout.barHeight + gap;
+    barcodeField = `^FO${layout.x},${layout.y}^BCN,${layout.barHeight},N,N,N`;
+    textField = `^FO${xText},${yText}^AEN,${textHeight},${wCell}^FD${code}^FS`;
+  }
 
   return [
     "^XA",
     `^PW${widthDots}^LL${heightDots}`,
     "^LH0,0",
-    `^BY${moduleWidth},3,${barHeight}`,
-    `^FO${x},${y}^BCN,${barHeight},N,N,N`,
+    `^BY${layout.moduleWidth},3,${layout.barHeight}`,
+    barcodeField,
     `^FD${code}^FS`,
-    `^FO${xText},${yText}^AEN,${textHeight},${wCell}^FD${code}^FS`,
+    textField,
     ...(quantity !== undefined ? [`^PQ${quantity}`] : []),
     "^XZ",
   ].join("\r\n");
@@ -76,19 +94,35 @@ export function buildLocationZpl({
   quantity,
   widthDots,
   heightDots,
+  rotated = false,
 }: BuildLocationZplInput): string {
+  const codeLength = codes[0]?.length ?? 0;
+  const textAxis = rotated ? widthDots : heightDots;
   const desiredTextHeight = clamp(
-    Math.round(heightDots * TEXT_HEIGHT_RATIO),
+    Math.round(textAxis * TEXT_HEIGHT_RATIO),
     TEXT_HEIGHT_MIN,
     TEXT_HEIGHT_MAX
   );
-  const textHeight =
+  let textHeight =
     Math.ceil(desiredTextHeight / OCR_B_CELL_HEIGHT) * OCR_B_CELL_HEIGHT;
+
+  if (rotated) {
+    // En rotation, le texte court verticalement le long du côté court :
+    // 4 caractères de largeur OCR-B (advance 0.52 × hauteur) doivent tenir
+    // entre les deux marges, sinon le texte déborde de l'étiquette.
+    const maxTextWidth = heightDots - 2 * ROTATED_MARGIN_DOTS;
+    const maxTextHeight = maxTextWidth / (codeLength * CHAR_ADVANCE_RATIO);
+    textHeight = Math.min(
+      textHeight,
+      Math.floor(maxTextHeight / OCR_B_CELL_HEIGHT) * OCR_B_CELL_HEIGHT
+    );
+  }
+
   const gap = Math.round(textHeight * TEXT_GAP_RATIO);
 
-  const { moduleWidth, barsWidth, x, barHeight, y } = computeBarcodeLayout({
-    widthDots,
-    heightDots,
+  const layout = computeBarcodeLayout({
+    widthDots: rotated ? heightDots : widthDots,
+    heightDots: rotated ? widthDots : heightDots,
     totalModules: TOTAL_MODULES,
     symbolModules: SYMBOL_MODULES,
     minModuleWidth: MIN_MODULE_WIDTH,
@@ -104,15 +138,12 @@ export function buildLocationZpl({
       (code, index) =>
         buildSingleLabel({
           code,
-          moduleWidth,
-          barsWidth,
-          x,
-          barHeight,
-          y,
-          textHeight,
-          gap,
+          layout,
           widthDots,
           heightDots,
+          rotated,
+          textHeight,
+          gap,
           quantity: index === 0 && codes.length === 1 ? quantity : undefined,
         })
     )

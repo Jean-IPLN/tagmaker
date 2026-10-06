@@ -276,4 +276,59 @@ describe("Ean13Form", () => {
       )
     );
   });
+
+  it("envoie l'orientation activée dans le réglage (rotated: true)", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent", quantity: 2 }));
+
+    document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
+      JSON.stringify({ rotated: true })
+    )}; path=/`;
+
+    const { codeInput, quantityInput, submitButton } = renderForm();
+    fireEvent.change(codeInput, { target: { value: VALID_BODY.ean13 } });
+    fireEvent.change(quantityInput, { target: { value: "2" } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/print/ean13",
+        expect.objectContaining({
+          body: JSON.stringify({
+            ean13: VALID_BODY.ean13,
+            quantity: 2,
+            rotated: true,
+          }),
+        })
+      )
+    );
+  });
+
+  it("n'envoie pas rotated quand le réglage est désactivé", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent", quantity: 2 }));
+
+    document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
+      JSON.stringify({ rotated: false })
+    )}; path=/`;
+
+    const { codeInput, quantityInput, submitButton } = renderForm();
+    fireEvent.change(codeInput, { target: { value: VALID_BODY.ean13 } });
+    fireEvent.change(quantityInput, { target: { value: "2" } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/print/ean13",
+        expect.objectContaining({
+          body: JSON.stringify({
+            ean13: VALID_BODY.ean13,
+            quantity: 2,
+          }),
+        })
+      )
+    );
+  });
 });

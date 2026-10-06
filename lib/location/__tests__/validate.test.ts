@@ -130,6 +130,54 @@ describe("locationRequestSchema — mode single", () => {
   });
 });
 
+describe("locationRequestSchema — orientation optionnelle (US1)", () => {
+  const single = {
+    mode: "single",
+    locationType: "classic",
+    code: "1A5B",
+    quantity: 2,
+  };
+  const range = {
+    mode: "range",
+    locationType: "classic",
+    ranges: [{ startCode: "1A10", endCode: "1A12" }],
+  };
+
+  it("accepte une requête sans rotated, et rotated booléen (single et range)", () => {
+    expect(locationRequestSchema.safeParse(single).success).toBe(true);
+    expect(
+      locationRequestSchema.safeParse({ ...single, rotated: true }).success
+    ).toBe(true);
+    expect(
+      locationRequestSchema.safeParse({ ...single, rotated: false }).success
+    ).toBe(true);
+    expect(locationRequestSchema.safeParse(range).success).toBe(true);
+    expect(
+      locationRequestSchema.safeParse({ ...range, rotated: true }).success
+    ).toBe(true);
+  });
+
+  it("rejette une valeur non booléenne pour rotated (single et range)", () => {
+    for (const rotated of ["true", 1, null]) {
+      expect(
+        locationRequestSchema.safeParse({ ...single, rotated }).success
+      ).toBe(false);
+      expect(
+        locationRequestSchema.safeParse({ ...range, rotated }).success
+      ).toBe(false);
+    }
+  });
+
+  it("rejette une clé inconnue même aux côtés de rotated (schéma strict)", () => {
+    const result = locationRequestSchema.safeParse({
+      ...single,
+      rotated: true,
+      unexpected: 1,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe("locationRequestSchema — mode range (plages multiples)", () => {
   it("accepte un ensemble d'une plage classique valide (1A10 → 1A1B)", () => {
     const result = locationRequestSchema.safeParse({

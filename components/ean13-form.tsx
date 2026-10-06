@@ -31,6 +31,7 @@ export function Ean13Form() {
           ...(settings.printerAddress
             ? { printerAddress: settings.printerAddress }
             : {}),
+          ...(settings.rotated ? { rotated: true } : {}),
         }),
       });
 

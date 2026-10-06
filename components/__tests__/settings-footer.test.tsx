@@ -305,3 +305,134 @@ describe("SettingsFooter — bouton Actualiser (US3)", () => {
     ).toHaveTextContent("192.168.1.99");
   });
 });
+
+describe("SettingsFooter — orientation (US1)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    readSettingsMock.mockReturnValue({});
+  });
+
+  function orientationSwitch(): HTMLButtonElement {
+    return screen.getByRole("button", { name: "Orientation" }) as HTMLButtonElement;
+  }
+
+  it("affiche un commutateur « Orientation » décoché par défaut", () => {
+    renderFooter();
+
+    expect(orientationSwitch()).toBeInTheDocument();
+    expect(orientationSwitch().getAttribute("data-state")).toBe("off");
+  });
+
+  it("activer le commutateur écrit rotated: true dans le réglage cookie", async () => {
+    renderFooter();
+
+    fireEvent.click(orientationSwitch());
+
+    await waitFor(() =>
+      expect(writeSettingsMock).toHaveBeenCalledWith({ rotated: true })
+    );
+    expect(orientationSwitch().getAttribute("data-state")).toBe("on");
+  });
+
+  it("désactiver écrit rotated: false après une activation", async () => {
+    renderFooter();
+
+    fireEvent.click(orientationSwitch());
+    fireEvent.click(orientationSwitch());
+
+    await waitFor(() =>
+      expect(writeSettingsMock).toHaveBeenCalledWith({ rotated: true })
+    );
+    await waitFor(() =>
+      expect(writeSettingsMock).toHaveBeenCalledWith({ rotated: false })
+    );
+    expect(orientationSwitch().getAttribute("data-state")).toBe("off");
+  });
+
+  it("restitue l'orientation activée depuis le cookie", async () => {
+    readSettingsMock.mockReturnValue({ rotated: true });
+    renderFooter();
+
+    await waitFor(() => {
+      expect(orientationSwitch().getAttribute("data-state")).toBe("on");
+    });
+    expect(writeSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it("désactive le commutateur sur un format non rotatable et refuse l'écriture", () => {
+    render(
+      <SettingsFooter
+        paperSizes={PAPER_SIZES}
+        defaultPaperId="40x25"
+        rotationEnabledPaperIds={["100x50"]}
+      />
+    );
+
+    expect(orientationSwitch().getAttribute("aria-disabled")).toBe("true");
+
+    fireEvent.click(orientationSwitch());
+    expect(orientationSwitch().getAttribute("data-state")).toBe("off");
+    expect(writeSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it("réinitialise l'orientation du cookie quand le format mémorisé n'est pas rotatable", async () => {
+    readSettingsMock.mockReturnValue({ paperId: "40x25", rotated: true });
+    render(
+      <SettingsFooter
+        paperSizes={PAPER_SIZES}
+        defaultPaperId="40x25"
+        rotationEnabledPaperIds={["100x50"]}
+      />
+    );
+
+    await waitFor(() =>
+      expect(writeSettingsMock).toHaveBeenCalledWith({ rotated: false })
+    );
+    expect(orientationSwitch().getAttribute("data-state")).toBe("off");
+  });
+
+  it("changer vers un format non rotatable désactive l'orientation et le mémorise", async () => {
+    readSettingsMock.mockReturnValue({ rotated: true });
+    render(
+      <SettingsFooter
+        paperSizes={PAPER_SIZES}
+        defaultPaperId="40x25"
+        rotationEnabledPaperIds={["40x25"]}
+      />
+    );
+    await waitFor(() => {
+      expect(orientationSwitch().getAttribute("data-state")).toBe("on");
+    });
+
+    fireEvent.click(screen.getByRole("combobox", { name: /Papier/ }));
+    await chooseOption(/100 × 50 mm/);
+
+    await waitFor(() =>
+      expect(writeSettingsMock).toHaveBeenCalledWith({
+        paperId: "100x50",
+        rotated: false,
+      })
+    );
+    expect(orientationSwitch().getAttribute("data-state")).toBe("off");
+    expect(orientationSwitch().getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("reste activé en passant d'un format rotatable à un autre", async () => {
+    readSettingsMock.mockReturnValue({ rotated: true });
+    renderFooter();
+
+    await waitFor(() => {
+      expect(orientationSwitch().getAttribute("data-state")).toBe("on");
+    });
+
+    fireEvent.click(screen.getByRole("combobox", { name: /Papier/ }));
+    await chooseOption(/100 × 50 mm/);
+
+    await waitFor(() =>
+      expect(writeSettingsMock).toHaveBeenCalledWith({ paperId: "100x50" })
+    );
+    await waitFor(() => {
+      expect(orientationSwitch().getAttribute("data-state")).toBe("on");
+    });
+  });
+});

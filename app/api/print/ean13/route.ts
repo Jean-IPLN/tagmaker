@@ -1,11 +1,12 @@
 import { env } from "@/lib/env";
 import { labelRequestSchema } from "@/lib/ean13/validate";
-import {
-  DEFAULT_PAPER_SIZE,
-  parsePaperSizes,
-  sizeById,
-} from "@/lib/paper-sizes";
+import { isRotatable } from "@/lib/orientation";
+import { sizeById } from "@/lib/paper-sizes";
 import { sendToPrinter } from "@/lib/printer/send";
+import {
+  getPaperSizes,
+  resolveDimensions,
+} from "@/lib/zpl/dimensions";
 import { buildEan13Zpl } from "@/lib/zpl/build";
 
 let currentPrint: Promise<{ status: "sent"; quantity: number }> | null = null;
@@ -14,34 +15,12 @@ function errorResponse(status: number, code: string, message: string) {
   return Response.json({ error: { code, message } }, { status });
 }
 
-function dotsFromMm(millimeters: number): number {
-  return Math.round((millimeters * env.ZPL_RESOLUTION_DPI) / 25.4);
-}
-
-function getPaperSizes() {
-  return parsePaperSizes(env.ZPL_PAPER_SIZES, DEFAULT_PAPER_SIZE);
-}
-
-function resolveDimensions(paperId: string | undefined): {
-  widthDots: number;
-  heightDots: number;
-} {
-  const sizes = getPaperSizes();
-  const size = paperId ? sizeById(paperId, sizes) : sizes[0];
-  if (!size) {
-    throw new Error("Aucun format de papier disponible.");
-  }
-  return {
-    widthDots: dotsFromMm(size.widthMm),
-    heightDots: dotsFromMm(size.heightMm),
-  };
-}
-
 async function performPrint(
   ean13: string,
   quantity: number,
   paperId: string | undefined,
-  printerAddress: string | undefined
+  printerAddress: string | undefined,
+  rotated: boolean
 ): Promise<{ status: "sent"; quantity: number }> {
   const { widthDots, heightDots } = resolveDimensions(paperId);
   const zpl = buildEan13Zpl({
@@ -49,6 +28,7 @@ async function performPrint(
     quantity,
     widthDots,
     heightDots,
+    rotated,
   });
   const target = printerAddress
     ? { host: printerAddress, port: env.ZPL_PRINTER_PORT }
@@ -75,7 +55,8 @@ export async function POST(request: Request): Promise<Response> {
     return errorResponse(422, "VALIDATION_ERROR", message);
   }
 
-const { ean13, quantity, paperId, printerAddress } = parsed.data;
+const { ean13, quantity, paperId, printerAddress, rotated = false } =
+  parsed.data;
 
   if (paperId && !sizeById(paperId, getPaperSizes())) {
     return errorResponse(
@@ -83,6 +64,18 @@ const { ean13, quantity, paperId, printerAddress } = parsed.data;
       "VALIDATION_ERROR",
       `Format de papier inconnu : ${paperId}.`
     );
+  }
+
+  if (rotated) {
+    const sizes = getPaperSizes();
+    const size = paperId ? sizeById(paperId, sizes) : sizes[0];
+    if (!size || !isRotatable(size, env.ZPL_RESOLUTION_DPI)) {
+      return errorResponse(
+        422,
+        "VALIDATION_ERROR",
+        "Format inutilisable en orientation pivotée."
+      );
+    }
   }
 
   if (currentPrint) {
@@ -93,7 +86,13 @@ const { ean13, quantity, paperId, printerAddress } = parsed.data;
     );
   }
 
-  const print = performPrint(ean13, quantity, paperId, printerAddress);
+  const print = performPrint(
+    ean13,
+    quantity,
+    paperId,
+    printerAddress,
+    rotated
+  );
   currentPrint = print;
 
   try {
