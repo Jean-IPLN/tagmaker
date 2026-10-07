@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { MAX_RANGES } from "@/lib/location/code";
+import { MAX_RANGES, padLocationCode } from "@/lib/location/code";
 import { expandRanges, locationRequestSchema } from "@/lib/location/validate";
 import { readPrintSettings } from "@/lib/print-settings-cookie";
 
@@ -193,13 +193,19 @@ function RangeRowFields({
   );
 }
 
+function emptyRange(id: number): RangeRow {
+  return {
+    id,
+    startCode: padLocationCode("1"),
+    endCode: padLocationCode("1"),
+  };
+}
+
 export function LocationForm() {
   const [mode, setMode] = useState<Mode>("single");
   const [locationType, setLocationType] = useState<LocationType>("classic");
-  const [code, setCode] = useState("");
-  const [ranges, setRanges] = useState<RangeRow[]>([
-    { id: 0, startCode: "", endCode: "" },
-  ]);
+  const [code, setCode] = useState(() => padLocationCode("1"));
+  const [ranges, setRanges] = useState<RangeRow[]>([emptyRange(0)]);
   const nextRangeId = useRef(1);
   const [quantity, setQuantity] = useState("1");
   const [isConfirming, setIsConfirming] = useState(false);
@@ -209,10 +215,7 @@ export function LocationForm() {
     if (ranges.length >= MAX_RANGES) {
       return;
     }
-    setRanges([
-      ...ranges,
-      { id: nextRangeId.current, startCode: "", endCode: "" },
-    ]);
+    setRanges([...ranges, emptyRange(nextRangeId.current)]);
     nextRangeId.current += 1;
   }
 
@@ -234,6 +237,14 @@ export function LocationForm() {
   }
 
   async function submitPrint(body: SingleBody | RangeBody) {
+    const settings = readPrintSettings();
+    if (!settings.printerAddress) {
+      toast.error(
+        "Aucune imprimante sélectionnée. Choisissez une imprimante dans les paramètres."
+      );
+      return;
+    }
+
     const labels =
       body.mode === "single"
         ? body.quantity
@@ -241,7 +252,6 @@ export function LocationForm() {
 
     setIsSending(true);
     try {
-      const settings = readPrintSettings();
       const response = await fetch("/api/print/location", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -329,11 +339,7 @@ export function LocationForm() {
       return;
     }
 
-    void submitPrint(
-      parsed.data.mode === "single"
-        ? buildSingleBody()
-        : buildRangeBody()
-    );
+    void submitPrint(parsed.data);
   }
 
   function handleConfirm() {
@@ -342,9 +348,7 @@ export function LocationForm() {
     if (!parsed.success) {
       return;
     }
-    void submitPrint(
-      parsed.data.mode === "single" ? buildSingleBody() : buildRangeBody()
-    );
+    void submitPrint(parsed.data);
   }
 
   function handleModeChange(next: boolean) {

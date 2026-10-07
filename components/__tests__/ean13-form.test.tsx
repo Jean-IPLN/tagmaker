@@ -17,6 +17,15 @@ const { toastMock } = vi.hoisted(() => ({
 vi.mock("sonner", () => ({ toast: toastMock }));
 
 const VALID_BODY = { ean13: "5901234123457", quantity: 5 };
+const PRINTER_ADDRESS = "192.168.1.99";
+const NO_PRINTER_MESSAGE =
+  "Aucune imprimante sélectionnée. Choisissez une imprimante dans les paramètres.";
+
+function setPrintSettingsCookie(settings: object): void {
+  document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
+    JSON.stringify(settings)
+  )}; path=/`;
+}
 
 function renderForm() {
   render(<Ean13Form />);
@@ -61,6 +70,8 @@ describe("Ean13Form", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse(200, { status: "sent", quantity: 2 }));
 
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
+
     const { codeInput, quantityInput, submitButton } = renderForm();
     fireEvent.change(codeInput, { target: { value: "5901234123457" } });
     fireEvent.change(quantityInput, { target: { value: "2" } });
@@ -71,7 +82,11 @@ describe("Ean13Form", () => {
         "/api/print/ean13",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ ean13: "5901234123457", quantity: 2 }),
+          body: JSON.stringify({
+            ean13: "5901234123457",
+            quantity: 2,
+            printerAddress: PRINTER_ADDRESS,
+          }),
         })
       )
     );
@@ -122,6 +137,8 @@ describe("Ean13Form", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse(200, { status: "sent", quantity: 5 }));
 
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
+
     const { codeInput, quantityInput, submitButton } = renderForm();
     fireEvent.change(codeInput, { target: { value: VALID_BODY.ean13 } });
     fireEvent.change(quantityInput, { target: { value: "5" } });
@@ -138,7 +155,10 @@ describe("Ean13Form", () => {
         "/api/print/ean13",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify(VALID_BODY),
+          body: JSON.stringify({
+            ...VALID_BODY,
+            printerAddress: PRINTER_ADDRESS,
+          }),
         })
       )
     );
@@ -155,6 +175,8 @@ describe("Ean13Form", () => {
           },
         })
       );
+
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
 
     const { codeInput, quantityInput, submitButton } = renderForm();
     fireEvent.change(codeInput, { target: { value: VALID_BODY.ean13 } });
@@ -179,6 +201,8 @@ describe("Ean13Form", () => {
       })
     );
 
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
+
     const { codeInput, quantityInput, submitButton } = renderForm();
     fireEvent.change(codeInput, { target: { value: VALID_BODY.ean13 } });
     fireEvent.change(quantityInput, { target: { value: "2" } });
@@ -195,6 +219,8 @@ describe("Ean13Form", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(
       new TypeError("Failed to fetch")
     );
+
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
 
     const { codeInput, quantityInput, submitButton } = renderForm();
     fireEvent.change(codeInput, { target: { value: VALID_BODY.ean13 } });
@@ -213,6 +239,8 @@ describe("Ean13Form", () => {
       jsonResponse(200, { status: "sent", quantity: 2 })
     );
 
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
+
     const { codeInput, quantityInput, submitButton } = renderForm();
     fireEvent.change(codeInput, { target: { value: VALID_BODY.ean13 } });
     fireEvent.change(quantityInput, { target: { value: "2" } });
@@ -227,7 +255,7 @@ describe("Ean13Form", () => {
       .mockResolvedValue(jsonResponse(200, { status: "sent", quantity: 2 }));
 
     document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
-      JSON.stringify({ paperId: "100x50" })
+      JSON.stringify({ paperId: "100x50", printerAddress: PRINTER_ADDRESS })
     )}; path=/`;
 
     const { codeInput, quantityInput, submitButton } = renderForm();
@@ -243,6 +271,7 @@ describe("Ean13Form", () => {
             ean13: VALID_BODY.ean13,
             quantity: 2,
             paperId: "100x50",
+            printerAddress: PRINTER_ADDRESS,
           }),
         })
       )
@@ -283,7 +312,7 @@ describe("Ean13Form", () => {
       .mockResolvedValue(jsonResponse(200, { status: "sent", quantity: 2 }));
 
     document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
-      JSON.stringify({ rotated: true })
+      JSON.stringify({ rotated: true, printerAddress: PRINTER_ADDRESS })
     )}; path=/`;
 
     const { codeInput, quantityInput, submitButton } = renderForm();
@@ -298,6 +327,7 @@ describe("Ean13Form", () => {
           body: JSON.stringify({
             ean13: VALID_BODY.ean13,
             quantity: 2,
+            printerAddress: PRINTER_ADDRESS,
             rotated: true,
           }),
         })
@@ -311,7 +341,7 @@ describe("Ean13Form", () => {
       .mockResolvedValue(jsonResponse(200, { status: "sent", quantity: 2 }));
 
     document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
-      JSON.stringify({ rotated: false })
+      JSON.stringify({ rotated: false, printerAddress: PRINTER_ADDRESS })
     )}; path=/`;
 
     const { codeInput, quantityInput, submitButton } = renderForm();
@@ -326,9 +356,94 @@ describe("Ean13Form", () => {
           body: JSON.stringify({
             ean13: VALID_BODY.ean13,
             quantity: 2,
+            printerAddress: PRINTER_ADDRESS,
           }),
         })
       )
     );
+  });
+
+  it("bloque l'impression sans imprimante sélectionnée (quantité 1)", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent" }));
+
+    const { codeInput, submitButton } = renderForm();
+    fireEvent.change(codeInput, { target: { value: VALID_BODY.ean13 } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(toastMock.error).toHaveBeenCalledWith(NO_PRINTER_MESSAGE)
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(submitButton).toBeEnabled();
+    expect(screen.queryByText("Impression en cours…")).not.toBeInTheDocument();
+  });
+
+  it("bloque à la confirmation sans imprimante sélectionnée (quantité 5)", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent" }));
+
+    const { codeInput, quantityInput, submitButton } = renderForm();
+    fireEvent.change(codeInput, { target: { value: VALID_BODY.ean13 } });
+    fireEvent.change(quantityInput, { target: { value: "5" } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(screen.getByText("Imprimer 5 étiquettes ?")).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Confirmer/i }));
+
+    await waitFor(() =>
+      expect(toastMock.error).toHaveBeenCalledWith(NO_PRINTER_MESSAGE)
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("laisse la validation prioritaire sans imprimante (contrôle négatif croisé)", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent" }));
+
+    const { codeInput, submitButton } = renderForm();
+    fireEvent.change(codeInput, { target: { value: "5901234123456" } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(toastMock.error).toHaveBeenCalledWith(
+        expect.stringMatching(/clé de contrôle/)
+      )
+    );
+    expect(toastMock.error).not.toHaveBeenCalledWith(NO_PRINTER_MESSAGE);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("envoie la requête quand une imprimante est sélectionnée (non-régression)", async () => {
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
+
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent", quantity: 1 }));
+
+    const { codeInput, submitButton } = renderForm();
+    fireEvent.change(codeInput, { target: { value: VALID_BODY.ean13 } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/print/ean13",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            ean13: VALID_BODY.ean13,
+            quantity: 1,
+            printerAddress: PRINTER_ADDRESS,
+          }),
+        })
+      )
+    );
+    expect(toastMock.error).not.toHaveBeenCalledWith(NO_PRINTER_MESSAGE);
+    expect(toastMock.success).toHaveBeenCalled();
   });
 });

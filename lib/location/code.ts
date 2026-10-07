@@ -12,6 +12,19 @@ export const LOCATION_REGEX = /^[12](([A-Z][1-9A-Z])|(#D))[0-9A-Z]$/;
 export const CLASSIC_LOCATION_REGEX = /^[12][A-Z][1-9A-Z][0-9A-Z]$/;
 export const DYNAMIC_LOCATION_REGEX = /^[12]#D[0-9A-Z]$/;
 
+export const LOCATION_CODE_LENGTH = 4;
+export const LOCATION_CODE_EMPTY_SLOT = " ";
+
+export function padLocationCode(value: string): string {
+  return value
+    .slice(0, LOCATION_CODE_LENGTH)
+    .padEnd(LOCATION_CODE_LENGTH, LOCATION_CODE_EMPTY_SLOT);
+}
+
+export function compactLocationCode(value: string): string {
+  return value.split(LOCATION_CODE_EMPTY_SLOT).join("");
+}
+
 export function isLocationCodeValid(code: string): boolean {
   return LOCATION_REGEX.test(code);
 }

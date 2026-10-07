@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent } from "react";
+import type { ClipboardEvent, KeyboardEvent } from "react";
 import { useRef } from "react";
 
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  LOCATION_CODE_EMPTY_SLOT,
+  padLocationCode,
+} from "@/lib/location/code";
 
 const SIZE_OPTIONS = ["1", "2"];
 
@@ -57,7 +61,7 @@ export function LocationCodeInput({
   const inputRefs = [secondRef, thirdRef, fourthRef];
   const segmentRefs = [firstRef, secondRef, thirdRef, fourthRef];
 
-  const chars = [value[0] ?? "", value[1] ?? "", value[2] ?? "", value[3] ?? ""];
+  const chars = [...padLocationCode(value)];
 
   const isFixed = (index: number) => fixedIndexes.includes(index);
 
@@ -75,18 +79,41 @@ export function LocationCodeInput({
     return null;
   }
 
-  function updateChar(index: number, char: string) {
-    const next = [...chars];
-    next[index] = char;
+  function emit(next: string[]) {
     for (const fix of fixedIndexes) {
       next[fix] = placeholders[fix];
     }
-    onChange(next.join(""));
+    onChange(padLocationCode(next.join("")));
+  }
+
+  function updateChar(index: number, char: string) {
+    const next = [...chars];
+    next[index] = char || LOCATION_CODE_EMPTY_SLOT;
+    emit(next);
 
     const target = nextEditable(index);
     if (target !== null) {
       segmentRefs[target].current?.focus();
     }
+  }
+
+  function handlePaste(
+    index: number,
+    event: ClipboardEvent<HTMLInputElement>
+  ) {
+    event.preventDefault();
+    const pasted = event.clipboardData.getData("text").toUpperCase();
+    const next = [...chars];
+    let target = index;
+
+    for (const raw of pasted) {
+      if (!CHAR_PATTERN.test(raw)) continue;
+      while (target < 4 && isFixed(target)) target += 1;
+      if (target >= 4) break;
+      next[target] = raw;
+      target += 1;
+    }
+    emit(next);
   }
 
   function handleCharChange(index: number, raw: string) {
@@ -101,7 +128,11 @@ export function LocationCodeInput({
   }
 
   function handleKeyDown(index: number, event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Backspace" && chars[index] === "" && index > 0) {
+    if (
+      event.key === "Backspace" &&
+      chars[index] === LOCATION_CODE_EMPTY_SLOT &&
+      index > 0
+    ) {
       event.preventDefault();
       const target = previousEditable(index);
       if (target !== null) {
@@ -129,7 +160,7 @@ export function LocationCodeInput({
       <div className="w-full">
         <Select
           items={SELECT_ITEMS}
-          value={chars[0] || null}
+          value={chars[0].trim() || null}
           onValueChange={(selected) => updateChar(0, selected ?? "")}
         >
           <SelectTrigger
@@ -168,8 +199,11 @@ export function LocationCodeInput({
             key={index}
             ref={inputRefs[index - 1]}
             aria-label={`${labelPrefix} — ${index + 1}e caractère`}
-            value={chars[index]}
+            value={
+              chars[index] === LOCATION_CODE_EMPTY_SLOT ? "" : chars[index]
+            }
             onChange={(event) => handleCharChange(index, event.target.value)}
+            onPaste={(event) => handlePaste(index, event)}
             onKeyDown={(event) => handleKeyDown(index, event)}
             maxLength={1}
             className="w-full text-center"

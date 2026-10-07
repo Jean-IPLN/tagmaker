@@ -29,6 +29,15 @@ const VALID_BODY = {
   code: "1A5B",
   quantity: 2,
 };
+const PRINTER_ADDRESS = "192.168.1.99";
+const NO_PRINTER_MESSAGE =
+  "Aucune imprimante sélectionnée. Choisissez une imprimante dans les paramètres.";
+
+function setPrintSettingsCookie(settings: object): void {
+  document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
+    JSON.stringify(settings)
+  )}; path=/`;
+}
 
 function renderForm() {
   render(<LocationForm />);
@@ -208,6 +217,8 @@ describe("LocationForm — mode single", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 2 }));
 
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
+
     const { quantityInput, submitButton } = renderForm();
     await fillCode("Code emplacement", "1A5B");
     fireEvent.change(quantityInput, { target: { value: "2" } });
@@ -218,7 +229,10 @@ describe("LocationForm — mode single", () => {
         "/api/print/location",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify(VALID_BODY),
+          body: JSON.stringify({
+            ...VALID_BODY,
+            printerAddress: PRINTER_ADDRESS,
+          }),
         })
       )
     );
@@ -271,6 +285,8 @@ describe("LocationForm — mode single", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 5 }));
 
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
+
     const { quantityInput, submitButton } = renderForm();
     await fillCode("Code emplacement", VALID_BODY.code);
     fireEvent.change(quantityInput, { target: { value: "5" } });
@@ -292,6 +308,7 @@ describe("LocationForm — mode single", () => {
             locationType: "classic",
             code: VALID_BODY.code,
             quantity: 5,
+            printerAddress: PRINTER_ADDRESS,
           }),
         })
       )
@@ -302,6 +319,8 @@ describe("LocationForm — mode single", () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 2 }));
+
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
 
     const { typeSwitch, submitButton } = renderForm();
     fireEvent.click(typeSwitch);
@@ -317,6 +336,7 @@ describe("LocationForm — mode single", () => {
             locationType: "dynamic",
             code: "1#D7",
             quantity: 1,
+            printerAddress: PRINTER_ADDRESS,
           }),
         })
       )
@@ -334,6 +354,8 @@ describe("LocationForm — mode single", () => {
           },
         })
       );
+
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
 
     const { quantityInput, submitButton } = renderForm();
     await fillCode("Code emplacement", VALID_BODY.code);
@@ -353,6 +375,8 @@ describe("LocationForm — mode single", () => {
       new TypeError("Failed to fetch")
     );
 
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
+
     const { quantityInput, submitButton } = renderForm();
     await fillCode("Code emplacement", VALID_BODY.code);
     fireEvent.change(quantityInput, { target: { value: "2" } });
@@ -370,6 +394,8 @@ describe("LocationForm — mode single", () => {
       jsonResponse(200, { status: "sent", labels: 2 })
     );
 
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
+
     const { quantityInput, submitButton } = renderForm();
     await fillCode("Code emplacement", VALID_BODY.code);
     fireEvent.change(quantityInput, { target: { value: "2" } });
@@ -384,7 +410,7 @@ describe("LocationForm — mode single", () => {
       .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 2 }));
 
     document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
-      JSON.stringify({ paperId: "100x50" })
+      JSON.stringify({ paperId: "100x50", printerAddress: PRINTER_ADDRESS })
     )}; path=/`;
 
     const { quantityInput, submitButton } = renderForm();
@@ -396,7 +422,11 @@ describe("LocationForm — mode single", () => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/print/location",
         expect.objectContaining({
-          body: JSON.stringify({ ...VALID_BODY, paperId: "100x50" }),
+          body: JSON.stringify({
+            ...VALID_BODY,
+            paperId: "100x50",
+            printerAddress: PRINTER_ADDRESS,
+          }),
         })
       )
     );
@@ -432,7 +462,7 @@ describe("LocationForm — mode single", () => {
       .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 2 }));
 
     document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
-      JSON.stringify({ rotated: true })
+      JSON.stringify({ rotated: true, printerAddress: PRINTER_ADDRESS })
     )}; path=/`;
 
     const { quantityInput, submitButton } = renderForm();
@@ -444,10 +474,70 @@ describe("LocationForm — mode single", () => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/print/location",
         expect.objectContaining({
-          body: JSON.stringify({ ...VALID_BODY, rotated: true }),
+          body: JSON.stringify({
+            ...VALID_BODY,
+            printerAddress: PRINTER_ADDRESS,
+            rotated: true,
+          }),
         })
       )
     );
+  });
+
+  it("bloque l'impression sans imprimante sélectionnée (mode Un seul)", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 2 }));
+
+    const { quantityInput, submitButton } = renderForm();
+    await fillCode("Code emplacement", VALID_BODY.code);
+    fireEvent.change(quantityInput, { target: { value: "2" } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(toastMock.error).toHaveBeenCalledWith(NO_PRINTER_MESSAGE)
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("Impression en cours…")).not.toBeInTheDocument();
+  });
+
+  it("bloque à la confirmation sans imprimante sélectionnée (quantité > 2)", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent" }));
+
+    const { quantityInput, submitButton } = renderForm();
+    await fillCode("Code emplacement", VALID_BODY.code);
+    fireEvent.change(quantityInput, { target: { value: "5" } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(screen.getByText("Imprimer 5 étiquettes ?")).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Confirmer/i }));
+
+    await waitFor(() =>
+      expect(toastMock.error).toHaveBeenCalledWith(NO_PRINTER_MESSAGE)
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("laisse la validation prioritaire sans imprimante (contrôle négatif croisé)", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent" }));
+
+    renderForm();
+    await fillCode("Code emplacement", "1A05");
+    fireEvent.click(screen.getByRole("button", { name: /Imprimer/i }));
+
+    await waitFor(() =>
+      expect(toastMock.error).toHaveBeenCalledWith(
+        expect.stringMatching(/4 caractères/)
+      )
+    );
+    expect(toastMock.error).not.toHaveBeenCalledWith(NO_PRINTER_MESSAGE);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
@@ -655,6 +745,8 @@ describe("LocationForm — mode range (plages multiples)", () => {
         .spyOn(globalThis, "fetch")
         .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 8 }));
 
+      setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
+
       const submitButton = switchToRange();
       await fillCode("Plage 1 — début", "1A10");
       await fillCode("Plage 1 — fin", "1A12");
@@ -683,6 +775,7 @@ describe("LocationForm — mode range (plages multiples)", () => {
                 { startCode: "1A10", endCode: "1A12" },
                 { startCode: "1B10", endCode: "1B14" },
               ],
+              printerAddress: PRINTER_ADDRESS,
             }),
           })
         )
@@ -696,6 +789,8 @@ describe("LocationForm — mode range (plages multiples)", () => {
       const fetchMock = vi
         .spyOn(globalThis, "fetch")
         .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 2 }));
+
+      setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
 
       const submitButton = switchToRange();
       await fillCode("Plage 1 — début", "1A90");
@@ -717,6 +812,7 @@ describe("LocationForm — mode range (plages multiples)", () => {
                 { startCode: "1A90", endCode: "1A90" },
                 { startCode: "1B90", endCode: "1B90" },
               ],
+              printerAddress: PRINTER_ADDRESS,
             }),
           })
         )
@@ -753,6 +849,8 @@ describe("LocationForm — mode range (plages multiples)", () => {
         .spyOn(globalThis, "fetch")
         .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 8 }));
 
+      setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
+
       const { modeSwitch, typeSwitch } = renderForm();
       fireEvent.click(modeSwitch);
       fireEvent.click(typeSwitch);
@@ -785,6 +883,7 @@ describe("LocationForm — mode range (plages multiples)", () => {
                 { startCode: "1#D0", endCode: "1#D2" },
                 { startCode: "1#D3", endCode: "1#D7" },
               ],
+              printerAddress: PRINTER_ADDRESS,
             }),
           })
         )
@@ -797,7 +896,7 @@ describe("LocationForm — mode range (plages multiples)", () => {
         .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 2 }));
 
       document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
-        JSON.stringify({ paperId: "100x50" })
+        JSON.stringify({ paperId: "100x50", printerAddress: PRINTER_ADDRESS })
       )}; path=/`;
 
       const submitButton = switchToRange();
@@ -814,6 +913,7 @@ describe("LocationForm — mode range (plages multiples)", () => {
               locationType: "classic",
               ranges: [{ startCode: "1A10", endCode: "1A11" }],
               paperId: "100x50",
+              printerAddress: PRINTER_ADDRESS,
             }),
           })
         )
@@ -855,7 +955,7 @@ describe("LocationForm — mode range (plages multiples)", () => {
         .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 2 }));
 
       document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=${encodeURIComponent(
-        JSON.stringify({ rotated: true })
+        JSON.stringify({ rotated: true, printerAddress: PRINTER_ADDRESS })
       )}; path=/`;
 
       const submitButton = switchToRange();
@@ -871,11 +971,158 @@ describe("LocationForm — mode range (plages multiples)", () => {
               mode: "range",
               locationType: "classic",
               ranges: [{ startCode: "1A10", endCode: "1A11" }],
+              printerAddress: PRINTER_ADDRESS,
               rotated: true,
             }),
           })
         )
       );
     });
+
+    it("bloque l'impression sans imprimante sélectionnée (envoi direct)", async () => {
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 1 }));
+
+      const submitButton = switchToRange();
+      await fillCode("Plage 1 — début", "1A90");
+      await fillCode("Plage 1 — fin", "1A90");
+
+      fireEvent.click(submitButton);
+
+      await waitFor(() =>
+        expect(toastMock.error).toHaveBeenCalledWith(NO_PRINTER_MESSAGE)
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(screen.queryByText("Impression en cours…")).not.toBeInTheDocument();
+    });
+
+    it("bloque à la confirmation sans imprimante sélectionnée (mode Plage)", async () => {
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(jsonResponse(200, { status: "sent" }));
+
+      const submitButton = switchToRange();
+      await fillCode("Plage 1 — début", "1A10");
+      await fillCode("Plage 1 — fin", "1A12");
+
+      fireEvent.click(submitButton);
+
+      await waitFor(() =>
+        expect(screen.getByText("Imprimer 3 étiquettes ?")).toBeInTheDocument()
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Confirmer/i }));
+
+      await waitFor(() =>
+        expect(toastMock.error).toHaveBeenCalledWith(NO_PRINTER_MESSAGE)
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("LocationForm — état paddé et zone amorcée (US2)", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    Object.values(toastMock).forEach((mock) => mock.mockClear());
+    document.cookie = `${PRINT_SETTINGS_COOKIE_NAME}=; Max-Age=0; path=/`;
+  });
+
+  it("amorce le code avec la zone « 1 » réellement engagée (FR-004)", () => {
+    renderForm();
+    const { first, second, third, fourth } = segments("Code emplacement");
+
+    expect(first).not.toHaveAttribute("data-placeholder");
+    expect(first.textContent).toBe("1");
+    expect((second as HTMLInputElement).value).toBe("");
+    expect((third as HTMLInputElement).value).toBe("");
+    expect((fourth as HTMLInputElement).value).toBe("");
+  });
+
+  it("conserve la zone « 1 » pendant la saisie directe puis envoie le code compact (FR-005, FR-007)", async () => {
+    setPrintSettingsCookie({ printerAddress: PRINTER_ADDRESS });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { status: "sent", labels: 1 }));
+
+    const { submitButton } = renderForm();
+    const { first } = segments("Code emplacement");
+    const second = screen.getByRole("textbox", {
+      name: "Code emplacement — 2e caractère",
+    });
+    const third = screen.getByRole("textbox", {
+      name: "Code emplacement — 3e caractère",
+    });
+    const fourth = screen.getByRole("textbox", {
+      name: "Code emplacement — 4e caractère",
+    });
+
+    fireEvent.change(second, { target: { value: "B" } });
+    fireEvent.change(third, { target: { value: "5" } });
+    fireEvent.change(fourth, { target: { value: "2" } });
+
+    expect(first.textContent).toBe("1");
+    expect(first).not.toHaveAttribute("data-placeholder");
+    expect((second as HTMLInputElement).value).toBe("B");
+    expect((third as HTMLInputElement).value).toBe("5");
+    expect((fourth as HTMLInputElement).value).toBe("2");
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/print/location",
+        expect.objectContaining({
+          body: JSON.stringify({
+            mode: "single",
+            locationType: "classic",
+            code: "1B52",
+            quantity: 1,
+            printerAddress: PRINTER_ADDRESS,
+          }),
+        })
+      )
+    );
+  });
+
+  it("amorce les bornes de plage avec la zone « 1 » (FR-004)", () => {
+    renderForm();
+    fireEvent.click(screen.getByRole("switch", { name: "Mode d'impression" }));
+
+    const debut = segments("Plage 1 — début");
+    const fin = segments("Plage 1 — fin");
+
+    expect(debut.first).not.toHaveAttribute("data-placeholder");
+    expect(debut.first.textContent).toBe("1");
+    expect((debut.second as HTMLInputElement).value).toBe("");
+    expect((debut.fourth as HTMLInputElement).value).toBe("");
+    expect(fin.first).not.toHaveAttribute("data-placeholder");
+    expect((fin.fourth as HTMLInputElement).value).toBe("");
+  });
+
+  it("plage : la zone sœur suit un changement de zone, pas une édition de caractère (FR-008)", async () => {
+    renderForm();
+    fireEvent.click(screen.getByRole("switch", { name: "Mode d'impression" }));
+
+    await fillCode("Plage 1 — début", "1A10");
+    await fillCode("Plage 1 — fin", "1A12");
+
+    await pickFirst("Plage 1 — début", "2");
+
+    expect(segments("Plage 1 — début").first.textContent).toBe("2");
+    expect(segments("Plage 1 — fin").first.textContent).toBe("2");
+
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Plage 1 — début — 4e caractère" }),
+      { target: { value: "5" } }
+    );
+
+    const fin = segments("Plage 1 — fin");
+    expect(fin.first.textContent).toBe("2");
+    expect((fin.second as HTMLInputElement).value).toBe("A");
+    expect((fin.fourth as HTMLInputElement).value).toBe("2");
+    expect(
+      (segments("Plage 1 — début").fourth as HTMLInputElement).value
+    ).toBe("5");
   });
 });

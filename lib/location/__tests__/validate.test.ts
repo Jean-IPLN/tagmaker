@@ -465,3 +465,74 @@ describe("totalRangeSizeIssue — cumul borné à MAX_TOTAL_LABELS (FR-010)", ()
     expect(issue).toMatch(/1000/i);
   });
 });
+
+describe("locationCodeField — compaction en frontière (FR-007)", () => {
+  const CODE_ERROR_MESSAGE =
+    "Le code emplacement doit contenir exactement 4 caractères : " +
+    "1 ou 2, puis 'A-Z' + '1-9/A-Z' ou '#D', puis '0-9/A-Z'";
+
+  const single = {
+    mode: "single",
+    locationType: "classic",
+    quantity: 1,
+  };
+
+  it("échoue sur un code amorcé seulement (zone « 1 » vides) avec le message inchangé", () => {
+    const result = locationRequestSchema.safeParse({
+      ...single,
+      code: "1   ",
+    });
+    expect(result.success).toBe(false);
+    const issue = result.error?.issues[0];
+    expect(issue?.path).toEqual(["code"]);
+    expect(issue?.message).toBe(CODE_ERROR_MESSAGE);
+  });
+
+  it("échoue sur une position vide en milieu de code (« 1 5B »)", () => {
+    const result = locationRequestSchema.safeParse({
+      ...single,
+      code: "1 5B",
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toMatch(/4 caractères/);
+  });
+
+  it("accepte un code complet et le restitue inchangé (aucune altération)", () => {
+    const result = locationRequestSchema.safeParse({
+      ...single,
+      code: "1B52",
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.mode === "single") {
+      expect(result.data.code).toBe("1B52");
+    }
+  });
+
+  it("échoue sur des bornes de plage amorcées (« 1   ») en désignant la borne", () => {
+    const result = locationRequestSchema.safeParse({
+      mode: "range",
+      locationType: "classic",
+      ranges: [{ startCode: "1   ", endCode: "1   " }],
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual([
+      "ranges",
+      0,
+      "startCode",
+    ]);
+    expect(result.error?.issues[0]?.message).toMatch(/4 caractères/);
+  });
+
+  it("accepte une plage aux bornes complètes et les restitue inchangées", () => {
+    const result = locationRequestSchema.safeParse({
+      mode: "range",
+      locationType: "classic",
+      ranges: [{ startCode: "1A10", endCode: "1A12" }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.mode === "range") {
+      expect(result.data.ranges[0]?.startCode).toBe("1A10");
+      expect(result.data.ranges[0]?.endCode).toBe("1A12");
+    }
+  });
+});

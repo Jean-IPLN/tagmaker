@@ -8,6 +8,7 @@ import {
   MAX_TOTAL_LABELS,
   ORDRE_LAST,
   POSITION_IDS,
+  compactLocationCode,
   isLocationCodeOfType,
   isLocationCodeValid,
 } from "@/lib/location/code";
@@ -31,10 +32,13 @@ const rotatedField = z.boolean().optional();
 
 const locationCodeField = z
   .string({ error: "Le code emplacement est requis" })
-  .regex(
-    LOCATION_REGEX,
-    "Le code emplacement doit contenir exactement 4 caractères : " +
-      "1 ou 2, puis 'A-Z' + '1-9/A-Z' ou '#D', puis '0-9/A-Z'"
+  .transform(compactLocationCode)
+  .pipe(
+    z.string().regex(
+      LOCATION_REGEX,
+      "Le code emplacement doit contenir exactement 4 caractères : " +
+        "1 ou 2, puis 'A-Z' + '1-9/A-Z' ou '#D', puis '0-9/A-Z'"
+    )
   );
 
 function typeOrientationMessage(code: string): string {

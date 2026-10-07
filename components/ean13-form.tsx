@@ -18,9 +18,16 @@ export function Ean13Form() {
   const [isSending, setIsSending] = useState(false);
 
   async function submitPrint(code: string, qty: number) {
+    const settings = readPrintSettings();
+    if (!settings.printerAddress) {
+      toast.error(
+        "Aucune imprimante sélectionnée. Choisissez une imprimante dans les paramètres."
+      );
+      return;
+    }
+
     setIsSending(true);
     try {
-      const settings = readPrintSettings();
       const response = await fetch("/api/print/ean13", {
         method: "POST",
         headers: { "content-type": "application/json" },
