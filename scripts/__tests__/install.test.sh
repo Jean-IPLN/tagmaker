@@ -147,6 +147,35 @@ run_tests() {
     expect_eq "T020: --keep-config posé hors mode" "yes" "$keep_config"
     expect_run "T020: --keep-config hors désinstallation → exit 2" "2" main --dry-run --keep-config
 
+    # --- T032 : mise à jour d'une installation existante ---
+    parse_args update
+    expect_eq "T032: commande → update" "update" "$command"
+    parse_args --update
+    expect_eq "T032: drapeau --update → update" "update" "$command"
+
+    rm -f "$TAGMAKER_UNIT" "$TAGMAKER_DIR/package.json"
+    set +e
+    update_err=$(main --dry-run --update 2>&1)
+    update_code=$?
+    set -e
+    expect_eq "T032: update sans installation → exit 1" "1" "$update_code"
+    expect_contains "T032: message install d'abord" "aucune installation" "$update_err"
+
+    mkdir -p "$(dirname "$TAGMAKER_UNIT")" "$TAGMAKER_DIR"
+    : > "$TAGMAKER_UNIT"
+    printf '{}\n' > "$TAGMAKER_DIR/package.json"
+    set +e
+    update_out=$(main --dry-run --update 2>&1)
+    update_code=$?
+    set -e
+    expect_eq "T032: update avec installation → exit 0" "0" "$update_code"
+    expect_contains "T032: dry-run annonce update" "[DRY-RUN] update" "$update_out"
+
+    : > "$TAGMAKER_STUB_LOG/calls.log"
+    enable_service >/dev/null
+    expect_contains "T032: activation redémarre le service" \
+        "systemctl restart tagmaker" "$(cat "$TAGMAKER_STUB_LOG/calls.log")"
+
     # --- T021 (US4) : effet de la désinstallation (FR-008/SC-005) ---
     mkdir -p "$TAGMAKER_DIR" "$(dirname "$TAGMAKER_UNIT")" "$(dirname "$TAGMAKER_ENV")"
     printf 'data' > "$TAGMAKER_DIR/README.md"

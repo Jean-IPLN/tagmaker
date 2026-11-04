@@ -89,7 +89,7 @@ sudo tee -a /home/<USER>/.tagmaker.env >/dev/null <<EOF
 TAGMAKER_PORT=3100
 EOF
 git -C /opt/tagmaker pull        # ou : git pull dans le clone d'origine
-bash scripts/install.sh          # ré-exécution (ou .setup in place)
+bash scripts/install.sh update   # ou : sh scripts/install.sh --update
 ```
 
 `<USER>` = l'utilisateur propriétaire (déclencheur sudo ; ex. `/home/ipln/.tagmaker.env` au serveur).
@@ -97,6 +97,8 @@ bash scripts/install.sh          # ré-exécution (ou .setup in place)
 **Attendu** : `TAGMAKER_PORT=3100` et les `ZPL_*` personnalisés toujours
 présents ; service actif sur le nouveau port
 (`curl -sI http://<ip>:3100` → 200). La configuration n'est **jamais écrasée**.
+Sans installation existante, `update` s'arrête en demandant de lancer d'abord
+`install`.
 
 ## 8. Désinstallation propre (US4 / SC-005)
 

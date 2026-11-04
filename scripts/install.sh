@@ -63,6 +63,7 @@ Usage: install.sh [COMMANDE] [OPTIONS]
 
 COMMANDE (défaut : install)
   install     Installe ou met à jour le service (construction puis activation).
+  update      Met à jour une installation existante (rebuild puis redémarrage).
   uninstall   Désinstalle le service (équivalent du drapeau --uninstall).
   status      Imprime l'état du service (systemd) et du point d'accès.
 
@@ -76,6 +77,8 @@ OPTIONS
   -h, --host <ADRESSE>     adresse d'écoute (défaut: 0.0.0.0)
   -U, --uninstall          désinstalle le service (drapeau équivalent à la
                            commande `uninstall` ; désactive `install`)
+      --update             met à jour une installation existante (drapeau
+                           équivalent à la commande `update` ; refuse si absente)
       --keep-config        (désinstallation) conserve le fichier ~/.tagmaker.env
       --dry-run            valide et affiche les actions prévues, ne modifie rien
   -q, --quiet              réduit la sortie
@@ -102,7 +105,7 @@ parse_args() {
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
-            install|uninstall|status)
+            install|update|uninstall|status)
                 command="$1"
                 ;;
             -d|--dir) shift; TAGMAKER_DIR="$1" ;;
@@ -112,6 +115,9 @@ parse_args() {
             -h|--host) shift; TAGMAKER_HOST="$1" ;;
             -U|--uninstall)
                 command="uninstall"
+                ;;
+            --update)
+                command="update"
                 ;;
             --keep-config)
                 keep_config="yes"
@@ -556,12 +562,12 @@ deploy_appcode() {
 }
 
 # ---------------------------------------------------------------------------
-# Activation systemd (enable --now → démarrage au boot) puis récapitulatif
+# Activation systemd (enable → démarrage au boot) puis récapitulatif
 # ---------------------------------------------------------------------------
 enable_service() {
     systemctl daemon-reload
-    systemctl enable --now "$SERVICE_NAME" >/dev/null 2>&1
-    systemctl start "$SERVICE_NAME" || systemctl restart "$SERVICE_NAME"
+    systemctl enable "$SERVICE_NAME" >/dev/null 2>&1
+    systemctl restart "$SERVICE_NAME"
     log "Service « $SERVICE_NAME » activé au boot et démarré."
 }
 
@@ -615,6 +621,18 @@ cmd_install() {
     write_unit "$host" "$port" || return 1
     enable_service || return 1
     print_report
+}
+
+installation_exists() {
+    [ -f "$TAGMAKER_UNIT" ] && [ -f "$TAGMAKER_DIR/package.json" ]
+}
+
+cmd_update() {
+    installation_exists || {
+        printf "ERROR: aucune installation TagMaker détectée — lancez d'abord : sudo sh scripts/install.sh install\n" >&2
+        return 1
+    }
+    cmd_install
 }
 
 cmd_status() {
@@ -713,13 +731,13 @@ uninstall_remove_config() {
 dry_run_install() {
     node_hint=$(resolve_node_bin 2>/dev/null || printf '%s' "aucun (TAGMAKER_NODE pour forcer)")
     cat <<EOF
-[DRY-RUN] install de TagMaker — aucune modification effectuée.
+[DRY-RUN] $command de TagMaker — aucune modification effectuée.
   Prérequis : distro + Node.js ≥ ${REQUIRED_NODE_MAJOR}.${REQUIRED_NODE_MINOR} (apt/dnf/yum)
   Node détecté : $node_hint
   Utilisateur : $TAGMAKER_USER (dédié, non privilégié, sans home — caches éphémères)
   Config : $(env_file_path) (~/.tagmaker.env, créée depuis .env.example si absent)
   Dossier : $TAGMAKER_DIR + build production (npm ci && npm run build, FR-003)
-  Unité : $TAGMAKER_UNIT puis systemctl enable --now $SERVICE_NAME
+  Unité : $TAGMAKER_UNIT puis systemctl enable + restart $SERVICE_NAME
   Écoute : http://${TAGMAKER_HOST}:${TAGMAKER_PORT} (LAN de confiance, FR-010/FR-011)
 EOF
 }
@@ -750,6 +768,7 @@ main() {
 
     case "$command" in
         install)   cmd_install ;;
+        update)    cmd_update ;;
         uninstall) cmd_uninstall ;;
         status)    cmd_status ;;
     esac

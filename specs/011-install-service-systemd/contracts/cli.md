@@ -12,6 +12,7 @@ install.sh [COMMANDE] [OPTIONS]
 
 COMMANDE (défaut : install)
   install     Installe ou met à jour le service (construction puis activation).
+  update      Met à jour une installation existante (rebuild puis redémarrage).
   uninstall   Désinstalle le service (équivalent du drapeau --uninstall).
   status      Imprime l'état du service (systemd) et du point d'accès.
 
@@ -25,6 +26,8 @@ OPTIONS
   -h, --host <ADRESSE>     adresse d'écoute (défaut: 0.0.0.0)
   -U, --uninstall           désinstalle le service (drapeau équivalent à la
                             commande `uninstall` ; désactive `install`)
+      --update             met à jour une installation existante (drapeau
+                           équivalent à la commande `update` ; refuse si absente)
       --keep-config        (désinstallation) conserve le fichier ~/.tagmaker.env
                            (vaut pour `uninstall` et --uninstall)
       --dry-run            valide et affiche les actions prévues, ne modifie rien
@@ -92,11 +95,23 @@ cf. § Prérequis détectés).
    npm) introuvable (`ENOENT spawn sh`).
 6. Écrit l'unité `/etc/systemd/system/tagmaker.service` puis
    `systemctl daemon-reload`.
-7. `systemctl enable --now tagmaker` et `systemctl start tagmaker`.
+7. `systemctl enable tagmaker` puis `systemctl restart tagmaker` (démarre le
+   service ou relance le processus après un rebuild).
 8. Affiche le récapitulatif (statut, point d'accès, commandes utiles).
 
 En cas d'échec de construction : **arrêt immédiat**, aucune unité
 enregistrée/démarrée, dossier existant intact (FR-003).
+
+## Comportement `update`
+
+- Deux écritures **équivalentes** activent la mise à jour : la **commande**
+  `update` ou le **drapeau** `--update`.
+- Une installation est considérée existante si l'unité systemd et le
+  `package.json` de `TAGMAKER_DIR` sont présents.
+- Installation absente → message `ERROR:` invitant à lancer d'abord `install`,
+  code de sortie 1.
+- Installation présente → même flux que `install` : configuration préservée,
+  rebuild production, réécriture de l'unité, puis redémarrage du service.
 
 ## Codes de sortie
 

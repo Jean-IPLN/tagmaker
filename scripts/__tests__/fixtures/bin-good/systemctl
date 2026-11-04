@@ -5,6 +5,10 @@
 state="${TAGMAKER_STUB_SYSTEMCTL_STATE:-active}"
 enabled="${TAGMAKER_STUB_SYSTEMCTL_ENABLED:-enabled}"
 
+if [ -n "${TAGMAKER_STUB_LOG:-}" ]; then
+    printf 'systemctl %s\n' "$*" >> "$TAGMAKER_STUB_LOG/calls.log"
+fi
+
 case "$1" in
   is-active)
     printf '%s\n' "$state"
