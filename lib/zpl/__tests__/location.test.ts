@@ -10,7 +10,7 @@ const FORMATS = [
     heightDots: 200,
     by: "^BY3,3,116",
     fo: "^FO42,10^BCN,116,N,N,N",
-    textField: "^FO103,134^AEN,56,27^FD1A5B^FS",
+    textField: "^FO0,134^AEN,56,27^FB320,1,0,C^FD1A5B^FS",
     moduleWidth: 3,
     barsWidth: 237,
     x: 42,
@@ -19,9 +19,8 @@ const FORMATS = [
     blockHeight: 180,
     textHeight: 56,
     gap: 8,
-    textWidth: 116,
+    textWidth: 108,
     wCell: 27,
-    xText: 103,
     yText: 134,
   },
   {
@@ -30,7 +29,7 @@ const FORMATS = [
     heightDots: 200,
     by: "^BY6,3,116",
     fo: "^FO63,10^BCN,116,N,N,N",
-    textField: "^FO242,134^AEN,56,27^FD1A5B^FS",
+    textField: "^FO0,134^AEN,56,27^FB600,1,0,C^FD1A5B^FS",
     moduleWidth: 6,
     barsWidth: 474,
     x: 63,
@@ -39,9 +38,8 @@ const FORMATS = [
     blockHeight: 180,
     textHeight: 56,
     gap: 8,
-    textWidth: 116,
+    textWidth: 108,
     wCell: 27,
-    xText: 242,
     yText: 134,
   },
   {
@@ -50,7 +48,7 @@ const FORMATS = [
     heightDots: 400,
     by: "^BY8,3,263",
     fo: "^FO84,20^BCN,263,N,N,N",
-    textField: "^FO312,296^AEN,84,40^FD1A5B^FS",
+    textField: "^FO0,296^AEN,84,40^FB800,1,0,C^FD1A5B^FS",
     moduleWidth: 8,
     barsWidth: 632,
     x: 84,
@@ -59,9 +57,8 @@ const FORMATS = [
     blockHeight: 360,
     textHeight: 84,
     gap: 13,
-    textWidth: 176,
+    textWidth: 160,
     wCell: 40,
-    xText: 312,
     yText: 296,
   },
   {
@@ -70,7 +67,7 @@ const FORMATS = [
     heightDots: 1200,
     by: "^BY8,3,951",
     fo: "^FO84,60^BCN,951,N,N,N",
-    textField: "^FO284,1028^AEN,112,54^FD1A5B^FS",
+    textField: "^FO0,1028^AEN,112,54^FB800,1,0,C^FD1A5B^FS",
     moduleWidth: 8,
     barsWidth: 632,
     x: 84,
@@ -79,9 +76,8 @@ const FORMATS = [
     blockHeight: 1080,
     textHeight: 112,
     gap: 17,
-    textWidth: 232,
+    textWidth: 216,
     wCell: 54,
-    xText: 284,
     yText: 1028,
   },
 ];
@@ -102,7 +98,7 @@ describe("buildLocationZpl — structure du flux Code 128, référence 100x150 (
     expect(zpl).toContain("^PQ5");
     expect(zpl).toContain("^BY8,3,951");
     expect(zpl).toContain("^FO84,60^BCN,951,N,N,N");
-    expect(zpl).toContain("^FO284,1028^AEN,112,54^FD1A5B^FS");
+    expect(zpl).toContain("^FO0,1028^AEN,112,54^FB800,1,0,C^FD1A5B^FS");
   });
 
   it("garantit la police OCR-B via HRI désactivée + champ texte ^AEN dédié", () => {
@@ -155,7 +151,7 @@ describe("buildLocationZpl — valeurs exactes par format", () => {
       heightDots: 200,
     });
     expect(zpl).toContain("^FO42,10^BCN,116,N,N,N");
-    expect(zpl).toContain("^FO103,134^AEN,56,27^FD1A5B^FS");
+    expect(zpl).toContain("^FO0,134^AEN,56,27^FB320,1,0,C^FD1A5B^FS");
   });
 });
 
@@ -175,7 +171,6 @@ describe("buildLocationZpl — invariants géométriques (data-model)", () => {
       gap,
       textWidth,
       wCell,
-      xText,
       yText,
     }) => {
       const zpl = buildLocationZpl({
@@ -209,7 +204,7 @@ describe("buildLocationZpl — invariants géométriques (data-model)", () => {
       expect(zpl).toContain(`^FO${x},${y}^BCN,${barHeight},N,N,N`);
       expect(
         zpl
-      ).toContain(`^FO${xText},${yText}^AEN,${textHeight},${wCell}^FD1A5B^FS`);
+      ).toContain(`^FO0,${yText}^AEN,${textHeight},${wCell}^FB${widthDots},1,0,C^FD1A5B^FS`);
     }
   );
 });
@@ -256,7 +251,7 @@ describe("buildLocationZpl — plafond de module (clamp)", () => {
     });
     expect(zpl).toContain("^BY4,3,152");
     expect(zpl).toContain("^FO42,12^BCN,152,N,N,N");
-    expect(zpl).toContain("^FO142,172^AEN,56,27^FD1A5B^FS");
+    expect(zpl).toContain("^FO0,172^AEN,56,27^FB400,1,0,C^FD1A5B^FS");
   });
 });
 
@@ -275,7 +270,7 @@ describe("buildLocationZpl — mode plage (un bloc par code)", () => {
     expect(zpl).toContain("^FD1A11^FS");
     expect(zpl).toContain("^FD1A12^FS");
     expect(zpl.split("^FO42,10^BCN,116,N,N,N")).toHaveLength(4);
-    expect(zpl.split("^FO103,134^AEN,56,27^FD")).toHaveLength(4);
+    expect(zpl.split("^FO0,134^AEN,56,27^FB320,1,0,C^FD")).toHaveLength(4);
   });
 
   it("utilise le même layout (module/position) sur chaque bloc de la plage", () => {
@@ -314,7 +309,7 @@ describe("buildLocationZpl — orientation pivotée (^BCB/^AEB)", () => {
     expect(zpl).toContain("^PW320^LL200");
     expect(zpl).toContain("^BY2,3,191");
     expect(zpl).toContain("^FO16,21^BCB,191,N,N,N");
-    expect(zpl).toContain("^FO220,12^AEB,84,40^FD1A5B^FS");
+    expect(zpl).toContain("^FO220,0^AEB,84,40^FB200,1,0,C^FD1A5B^FS");
     expect(zpl).not.toContain("^BCN,");
     expect(zpl).not.toContain("^AEN,");
   });
@@ -330,7 +325,7 @@ describe("buildLocationZpl — orientation pivotée (^BCB/^AEB)", () => {
 
     expect(zpl).toContain("^BY4,3,591");
     expect(zpl).toContain("^FO40,42^BCB,591,N,N,N");
-    expect(zpl).toContain("^FO648,84^AEB,112,54^FD1A5B^FS");
+    expect(zpl).toContain("^FO648,0^AEB,112,54^FB400,1,0,C^FD1A5B^FS");
   });
 
   it("reste sans chevauchement ni sortie sur les formats rotables", () => {
@@ -351,7 +346,9 @@ describe("buildLocationZpl — orientation pivotée (^BCB/^AEB)", () => {
 
       const by = zpl.match(/\^BY(\d+),3,(\d+)/);
       const fo = zpl.match(/\^FO(\d+),(\d+)\^BCB,(\d+),N,N,N/);
-      const text = zpl.match(/\^FO(\d+),(\d+)\^AEB,(\d+),(\d+)\^FD/);
+      const text = zpl.match(
+        /\^FO(\d+),0\^AEB,(\d+),(\d+)\^FB(\d+),1,0,C\^FD/
+      );
       if (!by || !fo || !text) {
         throw new Error("Flux ZPL roté invalide.");
       }
@@ -362,17 +359,15 @@ describe("buildLocationZpl — orientation pivotée (^BCB/^AEB)", () => {
       const barHeight = Number(fo[3]);
       const y = Number(fo[2]);
       const textX = Number(text[1]);
-      const textY = Number(text[2]);
-      const textHeight = Number(text[3]);
-      const textWidth = 4 * Math.round(textHeight * 0.52);
+      const textHeight = Number(text[2]);
+      const fieldBlockWidth = Number(text[4]);
 
       expect(barsWidth).toBeLessThanOrEqual(heightDots - 2 * 8);
       expect(x + barHeight).toBeLessThanOrEqual(widthDots - 8);
       expect(textX + textHeight).toBeLessThanOrEqual(widthDots);
       expect(y).toBeGreaterThanOrEqual(0);
       expect(y + barsWidth).toBeLessThanOrEqual(heightDots);
-      expect(textY).toBeGreaterThanOrEqual(0);
-      expect(textY + textWidth).toBeLessThanOrEqual(heightDots);
+      expect(fieldBlockWidth).toBe(heightDots);
     }
   });
 
@@ -388,7 +383,7 @@ describe("buildLocationZpl — orientation pivotée (^BCB/^AEB)", () => {
     expect(blocks).toHaveLength(2);
     expect(zpl).not.toContain("^PQ");
     expect(zpl.split("^FO16,21^BCB,191,N,N,N")).toHaveLength(3);
-    expect(zpl.split("^FO220,12^AEB,84,40^FD")).toHaveLength(3);
+    expect(zpl.split("^FO220,0^AEB,84,40^FB200,1,0,C^FD")).toHaveLength(3);
   });
 
   it("rotated: false (par défaut) garde exactement le comportement actuel", () => {

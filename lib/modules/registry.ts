@@ -18,6 +18,18 @@ const modules: LabelModule[] = [
     description: "Imprimer des étiquettes à code-barres Code 128 (classique ou #D)",
     href: "/emplacement",
   },
+  {
+    id: "code128",
+    name: "Code 128",
+    description: "Imprimer des étiquettes Code 128 à contenu libre",
+    href: "/code128",
+  },
+  {
+    id: "data-matrix",
+    name: "Data Matrix",
+    description: "Imprimer des étiquettes Data Matrix à contenu libre et légende",
+    href: "/data-matrix",
+  },
 ];
 
 export function getLabelModules(): LabelModule[] {

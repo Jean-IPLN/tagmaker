@@ -12,23 +12,18 @@ import {
   isLocationCodeOfType,
   isLocationCodeValid,
 } from "@/lib/location/code";
+import {
+  paperIdField,
+  printerAddressField,
+  quantityField,
+  rotatedField,
+} from "@/lib/print-options";
 
 export { isLocationCodeOfType, isLocationCodeValid };
 
 const locationTypeField = z.enum(["classic", "dynamic"], {
   error: "Le type d'emplacement doit être classique ou dynamique",
 });
-
-const paperIdField = z
-  .string()
-  .min(1, "Le format de papier est invalide")
-  .optional();
-
-const printerAddressField = z
-  .ipv4({ error: "L'adresse IPv4 de l'imprimante est invalide" })
-  .optional();
-
-const rotatedField = z.boolean().optional();
 
 const locationCodeField = z
   .string({ error: "Le code emplacement est requis" })
@@ -79,11 +74,7 @@ const singleSchema = z
     mode: z.literal("single"),
     locationType: locationTypeField,
     code: locationCodeField,
-    quantity: z
-      .number({ error: "La quantité doit être un nombre" })
-      .int("La quantité doit être un nombre entier")
-      .min(1, "La quantité doit être au moins 1")
-      .max(1000, "La quantité ne peut pas dépasser 1000"),
+    quantity: quantityField,
     paperId: paperIdField,
     printerAddress: printerAddressField,
     rotated: rotatedField,

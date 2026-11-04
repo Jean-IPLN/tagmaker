@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+import {
+  paperIdField,
+  printerAddressField,
+  quantityField,
+  rotatedField,
+} from "@/lib/print-options";
+
 export function isEan13Valid(code: string): boolean {
   if (!/^\d{13}$/.test(code)) {
     return false;
@@ -23,17 +30,8 @@ export const labelRequestSchema = z.object({
       "Le code EAN-13 doit contenir exactement 13 chiffres"
     )
     .refine(isEan13Valid, "La clé de contrôle du code EAN-13 est invalide"),
-  quantity: z
-    .number({ error: "La quantité doit être un nombre" })
-    .int("La quantité doit être un nombre entier")
-    .min(1, "La quantité doit être au moins 1")
-    .max(1000, "La quantité ne peut pas dépasser 1000"),
-  paperId: z
-    .string()
-    .min(1, "Le format de papier est invalide")
-    .optional(),
-  printerAddress: z
-    .ipv4({ error: "L'adresse IPv4 de l'imprimante est invalide" })
-    .optional(),
-  rotated: z.boolean().optional(),
+  quantity: quantityField,
+  paperId: paperIdField,
+  printerAddress: printerAddressField,
+  rotated: rotatedField,
 });

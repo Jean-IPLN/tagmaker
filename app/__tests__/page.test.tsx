@@ -30,6 +30,26 @@ describe("Home (accueil, lecture SSR du cookie)", () => {
     expect(container.querySelector("a[href='/ean13']")).toBeTruthy();
   });
 
+  it("affiche le module Code 128 dans les modules récents", async () => {
+    mockCookieValue = JSON.stringify([
+      { moduleId: "code128", lastUsedAt: NOW },
+    ]);
+
+    const { container } = render(await Home());
+    expect(container.querySelector("a[href='/code128']")).toBeTruthy();
+    expect(screen.getByText("Code 128")).toBeInTheDocument();
+  });
+
+  it("affiche le module Data Matrix dans les modules récents", async () => {
+    mockCookieValue = JSON.stringify([
+      { moduleId: "data-matrix", lastUsedAt: NOW },
+    ]);
+
+    const { container } = render(await Home());
+    expect(container.querySelector("a[href='/data-matrix']")).toBeTruthy();
+    expect(screen.getByText("Data Matrix")).toBeInTheDocument();
+  });
+
   it("affiche le squelette quand le cookie est absent", async () => {
     const { container } = render(await Home());
 

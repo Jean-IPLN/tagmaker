@@ -11,29 +11,29 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export interface Ean13ConfirmDialogProps {
+export interface PrintConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  quantity: number;
+  count: number;
   onConfirm: () => void;
 }
 
-export function Ean13ConfirmDialog({
+export function PrintConfirmDialog({
   open,
   onOpenChange,
-  quantity,
+  count,
   onConfirm,
-}: Ean13ConfirmDialogProps) {
+}: PrintConfirmDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            Imprimer {quantity} étiquette{quantity > 1 ? "s" : ""} ?
+            Imprimer {count} étiquette{count > 1 ? "s" : ""} ?
           </AlertDialogTitle>
           <AlertDialogDescription>
-            Cette action envoie {quantity} étiquette{quantity > 1 ? "s" : ""}{" "}
-            à l&apos;imprimante ZPL. Vérifiez la quantité avant de confirmer.
+            Cette action envoie {count} étiquette{count > 1 ? "s" : ""} à
+            l&apos;imprimante ZPL. Vérifiez la quantité avant de confirmer.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

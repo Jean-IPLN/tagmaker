@@ -7,16 +7,16 @@ import {
 import type { LabelModule } from "@/lib/modules/registry";
 
 const newModule: LabelModule = {
-  id: "code128",
-  name: "Code 128",
+  id: "custom",
+  name: "Custom",
   description: "Un autre format de code-barres",
-  href: "/code128",
+  href: "/custom",
 };
 
 describe("registre des modules", () => {
-  it("expose ean13 puis le module Emplacement avec leurs métadonnées", () => {
+  it("expose les quatre modules avec leurs métadonnées", () => {
     const modules = getLabelModules();
-    expect(modules).toHaveLength(2);
+    expect(modules).toHaveLength(4);
     expect(modules[0]).toEqual({
       id: "ean13",
       name: "EAN-13",
@@ -30,21 +30,30 @@ describe("registre des modules", () => {
         "Imprimer des étiquettes à code-barres Code 128 (classique ou #D)",
       href: "/emplacement",
     });
+    expect(modules[2]).toEqual({
+      id: "code128",
+      name: "Code 128",
+      description: "Imprimer des étiquettes Code 128 à contenu libre",
+      href: "/code128",
+    });
+    expect(modules[3]).toEqual({
+      id: "data-matrix",
+      name: "Data Matrix",
+      description:
+        "Imprimer des étiquettes Data Matrix à contenu libre et légende",
+      href: "/data-matrix",
+    });
   });
 
-  it("permet d'ajouter un module sans modifier ean13 (extensibilité FR-002)", () => {
-    const ean13Before = getLabelModules().find((m) => m.id === "ean13");
-    const locationBefore = getLabelModules().find((m) => m.id === "location");
-    expect(ean13Before).toBeDefined();
-    expect(locationBefore).toBeDefined();
+  it("permet d'ajouter un module sans modifier les modules existants", () => {
+    const before = getLabelModules();
 
     registerLabelModule(newModule);
 
     const modules = getLabelModules();
-    expect(modules).toHaveLength(3);
-    expect(modules.find((m) => m.id === "ean13")).toEqual(ean13Before);
-    expect(modules.find((m) => m.id === "location")).toEqual(locationBefore);
-    expect(modules.some((m) => m.id === "code128")).toBe(true);
+    expect(modules).toHaveLength(5);
+    expect(modules.slice(0, before.length)).toEqual(before);
+    expect(modules.some((m) => m.id === "custom")).toBe(true);
   });
 
   it("refuse un module avec un id dupliqué", () => {

@@ -4,12 +4,12 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Ean13ConfirmDialog } from "@/components/ean13-confirm-dialog";
+import { PrintConfirmDialog } from "@/components/print-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { labelRequestSchema } from "@/lib/ean13/validate";
-import { readPrintSettings } from "@/lib/print-settings-cookie";
+import { sendPrintRequest } from "@/lib/print-client";
 
 export function Ean13Form() {
   const [ean13, setEan13] = useState("");
@@ -18,48 +18,13 @@ export function Ean13Form() {
   const [isSending, setIsSending] = useState(false);
 
   async function submitPrint(code: string, qty: number) {
-    const settings = readPrintSettings();
-    if (!settings.printerAddress) {
-      toast.error(
-        "Aucune imprimante sélectionnée. Choisissez une imprimante dans les paramètres."
-      );
-      return;
-    }
-
     setIsSending(true);
     try {
-      const response = await fetch("/api/print/ean13", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          ean13: code,
-          quantity: qty,
-          ...(settings.paperId ? { paperId: settings.paperId } : {}),
-          ...(settings.printerAddress
-            ? { printerAddress: settings.printerAddress }
-            : {}),
-          ...(settings.rotated ? { rotated: true } : {}),
-        }),
-      });
-
-      const data: { error?: { message?: string } } | null =
-        await response.json().catch(() => null);
-
-      if (response.ok) {
-        toast.success(
-          `Impression envoyée (${qty} étiquette${qty > 1 ? "s" : ""})`
-        );
-        return;
-      }
-
-      const message = data?.error?.message ?? "L'impression a échoué.";
-      if (response.status === 503) {
-        toast.error(`Imprimante injoignable : ${message}`);
-      } else {
-        toast.error(message);
-      }
-    } catch {
-      toast.error("Erreur réseau : impossible de joindre le serveur.");
+      await sendPrintRequest(
+        "/api/print/ean13",
+        { ean13: code, quantity: qty },
+        qty
+      );
     } finally {
       setIsSending(false);
     }
@@ -126,10 +91,10 @@ export function Ean13Form() {
         {isSending ? "Impression en cours…" : "Imprimer"}
       </Button>
 
-      <Ean13ConfirmDialog
+      <PrintConfirmDialog
         open={isConfirming}
         onOpenChange={setIsConfirming}
-        quantity={Number(quantity)}
+        count={Number(quantity)}
         onConfirm={handleConfirm}
       />
     </form>

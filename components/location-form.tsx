@@ -6,11 +6,11 @@ import { Fragment, useRef, useState } from "react";
 import { cn } from "cn";
 import { toast } from "sonner";
 
-import { LocationConfirmDialog } from "@/components/location-confirm-dialog";
 import {
   LOCATION_CODE_PLACEHOLDERS,
   LocationCodeInput,
 } from "@/components/location-code-input";
+import { PrintConfirmDialog } from "@/components/print-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { MAX_RANGES, padLocationCode } from "@/lib/location/code";
 import { expandRanges, locationRequestSchema } from "@/lib/location/validate";
-import { readPrintSettings } from "@/lib/print-settings-cookie";
+import { sendPrintRequest } from "@/lib/print-client";
 
 type LocationType = "classic" | "dynamic";
 type Mode = "single" | "range";
@@ -237,14 +237,6 @@ export function LocationForm() {
   }
 
   async function submitPrint(body: SingleBody | RangeBody) {
-    const settings = readPrintSettings();
-    if (!settings.printerAddress) {
-      toast.error(
-        "Aucune imprimante sélectionnée. Choisissez une imprimante dans les paramètres."
-      );
-      return;
-    }
-
     const labels =
       body.mode === "single"
         ? body.quantity
@@ -252,37 +244,7 @@ export function LocationForm() {
 
     setIsSending(true);
     try {
-      const response = await fetch("/api/print/location", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          ...body,
-          ...(settings.paperId ? { paperId: settings.paperId } : {}),
-          ...(settings.printerAddress
-            ? { printerAddress: settings.printerAddress }
-            : {}),
-          ...(settings.rotated ? { rotated: true } : {}),
-        }),
-      });
-
-      const data: { error?: { message?: string } } | null =
-        await response.json().catch(() => null);
-
-      if (response.ok) {
-        toast.success(
-          `Impression envoyée (${labels} étiquette${labels > 1 ? "s" : ""})`
-        );
-        return;
-      }
-
-      const message = data?.error?.message ?? "L'impression a échoué.";
-      if (response.status === 503) {
-        toast.error(`Imprimante injoignable : ${message}`);
-      } else {
-        toast.error(message);
-      }
-    } catch {
-      toast.error("Erreur réseau : impossible de joindre le serveur.");
+      await sendPrintRequest("/api/print/location", { ...body }, labels);
     } finally {
       setIsSending(false);
     }
@@ -446,7 +408,7 @@ export function LocationForm() {
         {isSending ? "Impression en cours…" : "Imprimer"}
       </Button>
 
-      <LocationConfirmDialog
+      <PrintConfirmDialog
         open={isConfirming}
         onOpenChange={setIsConfirming}
         count={computeCount()}

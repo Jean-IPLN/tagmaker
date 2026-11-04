@@ -1,10 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Ean13ConfirmDialog } from "@/components/ean13-confirm-dialog";
+import { PrintConfirmDialog } from "@/components/print-confirm-dialog";
 
 function renderDialog(
-  quantity = 5,
+  count = 5,
   props: Partial<{
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -14,9 +14,9 @@ function renderDialog(
   const onConfirm = props.onConfirm ?? vi.fn();
   const onOpenChange = props.onOpenChange ?? vi.fn();
   render(
-    <Ean13ConfirmDialog
+    <PrintConfirmDialog
       open={props.open ?? true}
-      quantity={quantity}
+      count={count}
       onConfirm={onConfirm}
       onOpenChange={onOpenChange}
     />
@@ -24,7 +24,7 @@ function renderDialog(
   return { onConfirm, onOpenChange };
 }
 
-describe("Ean13ConfirmDialog", () => {
+describe("PrintConfirmDialog", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -32,12 +32,10 @@ describe("Ean13ConfirmDialog", () => {
   it("affiche la quantité à imprimer dans la modal", () => {
     renderDialog(5);
 
-    expect(
-      screen.getByText("Imprimer 5 étiquettes ?")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Imprimer 5 étiquettes ?")).toBeInTheDocument();
   });
 
-  it("Confirmer déclenche onConfirm sans requête directe", async () => {
+  it("Confirmer déclenche onConfirm sans requête directe", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const { onConfirm } = renderDialog(5);
 

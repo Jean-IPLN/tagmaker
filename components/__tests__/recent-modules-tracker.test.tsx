@@ -26,6 +26,26 @@ describe("RecentModulesTracker", () => {
     expect(entries[0].moduleId).toBe("ean13");
   });
 
+  it("enregistre le module Code 128 lors de sa consultation (/code128)", () => {
+    mockPathname = "/code128";
+
+    render(<RecentModulesTracker />);
+
+    const entries = readRecentCookie();
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries[0].moduleId).toBe("code128");
+  });
+
+  it("enregistre le module Data Matrix lors de sa consultation (/data-matrix)", () => {
+    mockPathname = "/data-matrix";
+
+    render(<RecentModulesTracker />);
+
+    const entries = readRecentCookie();
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries[0].moduleId).toBe("data-matrix");
+  });
+
   it("n'écrit rien sur une route qui n'est pas un module (/)", () => {
     render(<RecentModulesTracker />);
 
