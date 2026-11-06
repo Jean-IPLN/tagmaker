@@ -88,13 +88,14 @@ curl -sI http://<ip>:3000 | head -1 # → HTTP 200
 sudo tee -a /home/<USER>/.tagmaker.env >/dev/null <<EOF
 TAGMAKER_PORT=3100
 EOF
-git -C /opt/tagmaker pull        # ou : git pull dans le clone d'origine
-bash scripts/install.sh update   # ou : sh scripts/install.sh --update
+git pull                         # dans le clone source
+sudo sh scripts/install.sh update  # ou : --update
 ```
 
 `<USER>` = l'utilisateur propriétaire (déclencheur sudo ; ex. `/home/ipln/.tagmaker.env` au serveur).
 
-**Attendu** : `TAGMAKER_PORT=3100` et les `ZPL_*` personnalisés toujours
+**Attendu** : le code du clone est synchronisé vers `/opt/tagmaker`, puis
+rebuildé ; `TAGMAKER_PORT=3100` et les `ZPL_*` personnalisés sont toujours
 présents ; service actif sur le nouveau port
 (`curl -sI http://<ip>:3100` → 200). La configuration n'est **jamais écrasée**.
 Sans installation existante, `update` s'arrête en demandant de lancer d'abord

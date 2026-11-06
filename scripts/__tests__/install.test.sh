@@ -176,6 +176,43 @@ run_tests() {
     expect_contains "T032: activation redémarre le service" \
         "systemctl restart tagmaker" "$(cat "$TAGMAKER_STUB_LOG/calls.log")"
 
+    # --- T033 : synchronisation du code depuis le clone source ---
+    new_sandbox
+    sync_src="$SANDBOX/sync-src"
+    sync_dst="$SANDBOX/sync-dst"
+    mkdir -p "$sync_src/src" "$sync_dst/src" "$sync_dst/node_modules" \
+        "$sync_dst/.next" "$sync_dst/.git"
+    printf 'v2\n' > "$sync_src/src/app.txt"
+    printf 'new\n' > "$sync_src/new.txt"
+    printf 'SECRET=1\n' > "$sync_src/.env"
+    printf 'old\n' > "$sync_dst/src/app.txt"
+    printf 'keep-node\n' > "$sync_dst/node_modules/keep"
+    printf 'keep-next\n' > "$sync_dst/.next/keep"
+    printf 'keep-git\n' > "$sync_dst/.git/keep"
+    sync_appcode "$sync_src" "$sync_dst"
+    expect_eq "T033: fichier source mis à jour" "v2" "$(cat "$sync_dst/src/app.txt")"
+    expect_file "T033: nouveau fichier copié" "$sync_dst/new.txt"
+    expect_eq "T033: node_modules préservé" "keep-node" "$(cat "$sync_dst/node_modules/keep")"
+    expect_eq "T033: .next préservé" "keep-next" "$(cat "$sync_dst/.next/keep")"
+    expect_eq "T033: .git préservé" "keep-git" "$(cat "$sync_dst/.git/keep")"
+    expect_no_file "T033: .env local non déployé" "$sync_dst/.env"
+
+    deploy_dst="$SANDBOX/deploy-dst"
+    mkdir -p "$deploy_dst"
+    printf '{}\n' > "$deploy_dst/package.json"
+    printf 'keep\n' > "$deploy_dst/old-marker"
+    deploy_appcode "$deploy_dst" "$(id -un)" >/dev/null
+    expect_file "T033: deploy synchronise le clone vers TAGMAKER_DIR" \
+        "$deploy_dst/package-lock.json"
+    expect_file "T033: deploy additif conserve l'existant" "$deploy_dst/old-marker"
+
+    fresh_dst="$SANDBOX/fresh-dst"
+    deploy_appcode "$fresh_dst" "$(id -un)" >/dev/null
+    expect_file "T033: première copie depuis le clone" "$fresh_dst/package-lock.json"
+    expect_no_file "T033: première copie sans .env local" "$fresh_dst/.env"
+    expect_no_file "T033: première copie sans node_modules" "$fresh_dst/node_modules"
+    tear
+
     # --- T021 (US4) : effet de la désinstallation (FR-008/SC-005) ---
     mkdir -p "$TAGMAKER_DIR" "$(dirname "$TAGMAKER_UNIT")" "$(dirname "$TAGMAKER_ENV")"
     printf 'data' > "$TAGMAKER_DIR/README.md"

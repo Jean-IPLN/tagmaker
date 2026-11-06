@@ -546,17 +546,40 @@ create_service_user() {
     fi
 }
 
+sync_appcode() {
+    source_dir="$1"
+    appdir="$2"
+    [ "$source_dir" = "$appdir" ] && return 0
+    case "$appdir/" in
+        "$source_dir/"*)
+            printf 'ERROR: TAGMAKER_DIR (%s) ne doit pas être dans le clone source (%s).\n' \
+                "$appdir" "$source_dir" >&2
+            return 1
+            ;;
+    esac
+
+    # shortcut: synchronisation additive (pas de suppression), suffisante pour
+    # le build ; passer à `rsync --delete` si les fichiers retirés doivent disparaître.
+    tar -C "$source_dir" --exclude=.git --exclude=node_modules --exclude=.next \
+        --exclude='.env*' -cf - . | tar -C "$appdir" -xf -
+}
+
 deploy_appcode() {
     appdir="$1"
     user="$2"
-    source_dir=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+    source_dir="${REPO_ROOT:-}"
+    [ -n "$source_dir" ] || source_dir=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 
-    if [ -f "$appdir/package.json" ]; then
-        log "Application déjà présente dans $appdir (utilisée en place)."
+    if [ "$source_dir" = "$appdir" ]; then
+        log "Application utilisée en place : $appdir."
     else
-        mkdir -p "$(dirname "$appdir")"
-        cp -a "$source_dir/." "$appdir"
-        log "Application copiée de $source_dir vers $appdir."
+        mkdir -p "$appdir"
+        if [ -f "$appdir/package.json" ]; then
+            log "Mise à jour du code depuis $source_dir vers $appdir..."
+        else
+            log "Application copiée de $source_dir vers $appdir."
+        fi
+        sync_appcode "$source_dir" "$appdir" || return 1
     fi
     chown -R "$user:$user" "$appdir"
 }

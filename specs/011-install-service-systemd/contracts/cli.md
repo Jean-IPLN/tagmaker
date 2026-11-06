@@ -81,8 +81,9 @@ cf. § Prérequis détectés).
    (déclencheur sudo sous sudo, sinon utilisateur courant) depuis
    `.env.example` **si absent** (jamais écrasé) ;
    applique host/port par défaut du contrat config.
-4. Copie le dépôt vers `TAGMAKER_DIR` (propriétaire `TAGMAKER_USER`) — ou
-   l'utilise en place si c'est déjà le dossier de travail.
+4. Synchronise le dépôt vers `TAGMAKER_DIR` (propriétaire `TAGMAKER_USER`),
+   hors `.git`, `node_modules`, `.next` et `.env*`, avant le build. Si le
+   script est lancé depuis `TAGMAKER_DIR`, l'utilise en place.
 5. Exécute `npm ci && npm run build` **en tant que** `TAGMAKER_USER`, dans un
    contexte `su` qui **charge au préalable la config applicative**
    (`~/.tagmaker.env` du home de l'utilisateur propriétaire — lecture
@@ -110,8 +111,10 @@ enregistrée/démarrée, dossier existant intact (FR-003).
   `package.json` de `TAGMAKER_DIR` sont présents.
 - Installation absente → message `ERROR:` invitant à lancer d'abord `install`,
   code de sortie 1.
-- Installation présente → même flux que `install` : configuration préservée,
-  rebuild production, réécriture de l'unité, puis redémarrage du service.
+- Installation présente → même flux que `install` : synchronisation du code
+  depuis le clone d'exécution si `TAGMAKER_DIR` est distinct, configuration
+  préservée, rebuild production, réécriture de l'unité, puis redémarrage du
+  service.
 
 ## Codes de sortie
 

@@ -88,6 +88,7 @@ expect_run() {
     fi
 }
 
+REPO_ROOT="$ROOT"
 . "$SCRIPT"
 . "$ROOT/scripts/__tests__/install.test.sh"
 
