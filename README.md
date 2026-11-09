@@ -23,6 +23,10 @@ Copier `.env.example` vers `.env` et ajuster si besoin :
 | `ZPL_PAPER_SIZES` | *(requise)* | formats de papier — **source de vérité de la taille d'étiquette**, ex. `40x25, 75x25, 100x50, 100x150` ; le format par défaut est la plus petite surface |
 | `ZPL_SCAN_SUBNET` | *(vide)* | sous-réseau de découverte, ex. `192.168.1.0` (sinon dérivé de `ZPL_PRINTER_HOST`) |
 
+En service installé, une modification de `ZPL_PAPER_SIZES` ou
+`ZPL_RESOLUTION_DPI` est prise en compte après
+`sudo systemctl restart tagmaker`, sans rebuild.
+
 ## Lancement
 
 ```bash

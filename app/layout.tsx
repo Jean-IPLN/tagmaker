@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -36,7 +37,9 @@ function getDefaultPaperSettings() {
   return { paperSizes, defaultPaperId: paperSizes[0].id, rotationEnabledPaperIds };
 }
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Les ZPL_* doivent être lus au runtime, pas figés au build.
+  await connection();
   const { paperSizes, defaultPaperId, rotationEnabledPaperIds } =
     getDefaultPaperSettings();
 
