@@ -90,6 +90,46 @@ describe("POST /api/print/data-matrix", () => {
     expect(zpl).not.toContain("^FB");
   });
 
+  it("200 — place la légende à droite en in-line", async () => {
+    sendMock.mockResolvedValueOnce({ status: "sent" });
+    const response = await POST(
+      makeRequest({ ...VALID_BODY, inline: true })
+    );
+
+    expect(response.status).toBe(200);
+    const zpl = sendMock.mock.calls[0][0] as string;
+    expect(zpl).toContain("^FO19,36^BXN,8,200,16,16,6,_,1");
+    expect(zpl).toContain(
+      "^FO151,86^AEN,28,13^FB161,1,0,L^FDPalette 42^FS"
+    );
+    expect(zpl).not.toContain("^AEB");
+  });
+
+  it("200 — l'orientation pivotée reste prioritaire sur l'in-line", async () => {
+    sendMock.mockResolvedValueOnce({ status: "sent" });
+    const response = await POST(
+      makeRequest({ ...VALID_BODY, rotated: true, inline: true })
+    );
+
+    expect(response.status).toBe(200);
+    const zpl = sendMock.mock.calls[0][0] as string;
+    expect(zpl).toContain("^BXB");
+    expect(zpl).toContain("^AEB");
+    expect(zpl).not.toContain("^BXN");
+  });
+
+  it("422 — refuse une valeur inline non booléenne", async () => {
+    const response = await POST(
+      makeRequest({ ...VALID_BODY, inline: "true" })
+    );
+
+    expect(response.status).toBe(422);
+    expect((await response.json()).error.message).toBe(
+      "Le mode d'affichage est invalide"
+    );
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
   it("200 — imprime en orientation pivotée", async () => {
     sendMock.mockResolvedValueOnce({ status: "sent" });
     const response = await POST(

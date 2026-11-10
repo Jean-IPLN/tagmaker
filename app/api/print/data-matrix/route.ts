@@ -16,6 +16,7 @@ export const POST = createPrintPostHandler({
       widthDots,
       heightDots,
       rotated,
+      inline: data.inline,
     }),
     body: { status: "sent", labels: data.quantity },
   }),
@@ -26,6 +27,7 @@ export const POST = createPrintPostHandler({
       widthDots,
       heightDots,
       rotated,
+      inline: data.inline,
     })
       ? null
       : { code: "VALIDATION_ERROR", message: FIT_MESSAGE },

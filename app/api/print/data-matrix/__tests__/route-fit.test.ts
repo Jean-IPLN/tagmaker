@@ -52,6 +52,38 @@ describe("POST /api/print/data-matrix — tenue sur le support", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
+  it("422 — légende in-line de 19 caractères en 40 × 25 mm", async () => {
+    const response = await POST(
+      makeRequest({
+        content: "A",
+        legend: "L".repeat(19),
+        quantity: 1,
+        paperId: "40x25",
+        inline: true,
+      })
+    );
+
+    expect(response.status).toBe(422);
+    expect((await response.json()).error.message).toBe(FIT_MESSAGE);
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("200 — légende in-line de 18 caractères pile en 40 × 25 mm", async () => {
+    sendMock.mockResolvedValueOnce({ status: "sent" });
+    const response = await POST(
+      makeRequest({
+        content: "A",
+        legend: "L".repeat(18),
+        quantity: 1,
+        paperId: "40x25",
+        inline: true,
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(sendMock).toHaveBeenCalledOnce();
+  });
+
   it("422 — légende pivotée de 13 caractères en 40 × 25 mm", async () => {
     const response = await POST(
       makeRequest({

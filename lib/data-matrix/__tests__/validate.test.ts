@@ -97,6 +97,35 @@ describe("dataMatrixRequestSchema — légende", () => {
   });
 });
 
+describe("dataMatrixRequestSchema — affichage in-line", () => {
+  it("accepte inline absent, faux ou vrai", () => {
+    const base = { content: "ABC", quantity: 1 };
+
+    expect(dataMatrixRequestSchema.safeParse(base).success).toBe(true);
+    expect(
+      dataMatrixRequestSchema.safeParse({ ...base, inline: false }).success
+    ).toBe(true);
+    expect(
+      dataMatrixRequestSchema.safeParse({ ...base, inline: true }).success
+    ).toBe(true);
+  });
+
+  it("refuse une valeur non booléenne avec un message explicite", () => {
+    for (const inline of ["true", 1, null]) {
+      const result = dataMatrixRequestSchema.safeParse({
+        content: "ABC",
+        quantity: 1,
+        inline,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.success ? undefined : result.error.issues[0]?.message).toBe(
+        "Le mode d'affichage est invalide"
+      );
+    }
+  });
+});
+
 describe("dataMatrixRequestSchema — quantité et options", () => {
   it("accepte les réglages partagés et refuse un champ inconnu", () => {
     const valid = dataMatrixRequestSchema.safeParse({

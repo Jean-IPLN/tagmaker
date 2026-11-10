@@ -8,6 +8,7 @@ import { PrintConfirmDialog } from "@/components/print-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { dataMatrixRequestSchema } from "@/lib/data-matrix/validate";
 import { sendPrintRequest } from "@/lib/print-client";
 
@@ -15,10 +16,16 @@ export function DataMatrixForm() {
   const [content, setContent] = useState("");
   const [legend, setLegend] = useState("");
   const [quantity, setQuantity] = useState("1");
+  const [isInline, setIsInline] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
-  async function submitPrint(value: string, text: string, qty: number) {
+  async function submitPrint(
+    value: string,
+    text: string,
+    qty: number,
+    inline: boolean
+  ) {
     setIsSending(true);
     try {
       await sendPrintRequest(
@@ -27,6 +34,7 @@ export function DataMatrixForm() {
           content: value,
           ...(text ? { legend: text } : {}),
           quantity: qty,
+          ...(inline ? { inline: true } : {}),
         },
         qty
       );
@@ -64,7 +72,8 @@ export function DataMatrixForm() {
     void submitPrint(
       parsed.data.content,
       parsed.data.legend,
-      parsed.data.quantity
+      parsed.data.quantity,
+      isInline
     );
   }
 
@@ -77,7 +86,8 @@ export function DataMatrixForm() {
     void submitPrint(
       parsed.data.content,
       parsed.data.legend,
-      parsed.data.quantity
+      parsed.data.quantity,
+      isInline
     );
   }
 
@@ -110,6 +120,20 @@ export function DataMatrixForm() {
         <p className="text-sm text-muted-foreground">
           0 à 60 caractères, imprimée sous le code.
         </p>
+      </div>
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <Label htmlFor="inline">Affichage in-line</Label>
+          <p id="inline-help" className="text-sm text-muted-foreground">
+            Légende à droite du code, sur la même ligne (orientation normale).
+          </p>
+        </div>
+        <Switch
+          id="inline"
+          aria-describedby="inline-help"
+          checked={isInline}
+          onCheckedChange={setIsInline}
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="quantity">Quantité</Label>

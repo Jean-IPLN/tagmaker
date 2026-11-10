@@ -9,6 +9,7 @@ export interface BuildDataMatrixZplInput {
   widthDots: number;
   heightDots: number;
   rotated?: boolean;
+  inline?: boolean;
 }
 
 interface DataMatrixCapacity {
@@ -63,6 +64,8 @@ interface DataMatrixLayout {
   legendCellWidth: number;
   textX: number;
   textY: number;
+  textFieldWidth: number;
+  inline: boolean;
 }
 
 interface DataMatrixLayoutInput {
@@ -71,6 +74,7 @@ interface DataMatrixLayoutInput {
   widthDots: number;
   heightDots: number;
   rotated?: boolean;
+  inline?: boolean;
 }
 
 export function dataMatrixSymbolDimension(length: number): number {
@@ -113,14 +117,98 @@ function computeLegendHeight(
   return 0;
 }
 
+function computeInlineLayout(
+  content: string,
+  legend: string,
+  widthDots: number,
+  heightDots: number
+): DataMatrixLayout | null {
+  const dimension = dataMatrixSymbolDimension(content.length);
+  const availableWidth = widthDots - 2 * MARGIN_DOTS;
+  const availableHeight = heightDots - 2 * MARGIN_DOTS;
+  const span = dimension + 2 * QUIET_MODULES_PER_SIDE;
+  const moduleMax = clamp(
+    Math.floor(availableHeight / span),
+    MIN_MODULE_SIZE,
+    MAX_MODULE_SIZE
+  );
+  const desired = clamp(
+    Math.round(Math.min(widthDots, heightDots) * LEGEND_HEIGHT_RATIO),
+    LEGEND_HEIGHT_MIN,
+    LEGEND_HEIGHT_MAX
+  );
+  const heightMax =
+    Math.floor(availableHeight / OCR_B_CELL_HEIGHT) * OCR_B_CELL_HEIGHT;
+
+  if (heightMax < LEGEND_HEIGHT_MIN) {
+    return null;
+  }
+
+  const start = Math.min(
+    Math.ceil(desired / OCR_B_CELL_HEIGHT) * OCR_B_CELL_HEIGHT,
+    Math.min(heightMax, LEGEND_HEIGHT_MAX)
+  );
+
+  for (let moduleSize = moduleMax; moduleSize >= MIN_MODULE_SIZE; moduleSize--) {
+    const symbolSize = dimension * moduleSize;
+    if (symbolSize > availableHeight) {
+      continue;
+    }
+
+    const remainingWidth = availableWidth - symbolSize;
+    if (remainingWidth <= 0) {
+      continue;
+    }
+
+    for (
+      let legendHeight = start;
+      legendHeight >= LEGEND_HEIGHT_MIN;
+      legendHeight -= OCR_B_CELL_HEIGHT
+    ) {
+      const advance = Math.round(legendHeight * CHAR_ADVANCE_RATIO);
+      const gap = Math.round(legendHeight * LEGEND_GAP_RATIO);
+      const textWidth = legend.length * advance;
+
+      if (textWidth + gap > remainingWidth) {
+        continue;
+      }
+
+      const blockWidth = symbolSize + gap + textWidth;
+      const symbolX = Math.round((widthDots - blockWidth) / 2);
+      const textX = symbolX + symbolSize + gap;
+      return {
+        dimension,
+        moduleSize,
+        symbolSize,
+        symbolX,
+        symbolY: Math.round((heightDots - symbolSize) / 2),
+        legendHeight,
+        legendCellWidth: Math.round(legendHeight * OCR_B_WIDTH_RATIO),
+        textX,
+        textY: Math.round((heightDots - legendHeight) / 2),
+        textFieldWidth: widthDots - MARGIN_DOTS - textX,
+        inline: true,
+      };
+    }
+  }
+
+  return null;
+}
+
 function computeDataMatrixLayout({
   content,
   legend = "",
   widthDots,
   heightDots,
   rotated = false,
+  inline = false,
 }: DataMatrixLayoutInput): DataMatrixLayout | null {
   const dimension = dataMatrixSymbolDimension(content.length);
+
+  if (!rotated && inline && legend.length > 0) {
+    return computeInlineLayout(content, legend, widthDots, heightDots);
+  }
+
   const textAxis = rotated ? heightDots : widthDots;
   const smallAxis = Math.min(widthDots, heightDots);
   const legendHeight = computeLegendHeight(legend, textAxis, smallAxis);
@@ -167,6 +255,8 @@ function computeDataMatrixLayout({
       legendCellWidth,
       textX: blockLeft + symbolSize + gap,
       textY: 0,
+      textFieldWidth: heightDots,
+      inline: false,
     };
   }
 
@@ -182,6 +272,8 @@ function computeDataMatrixLayout({
     legendCellWidth,
     textX: 0,
     textY: blockTop + symbolSize + gap,
+    textFieldWidth: widthDots,
+    inline: false,
   };
 }
 
@@ -192,6 +284,7 @@ export function buildDataMatrixZpl({
   widthDots,
   heightDots,
   rotated = false,
+  inline = false,
 }: BuildDataMatrixZplInput): string {
   if (content.length === 0) {
     return "";
@@ -203,6 +296,7 @@ export function buildDataMatrixZpl({
     widthDots,
     heightDots,
     rotated,
+    inline,
   });
   if (!layout) {
     return "";
@@ -228,8 +322,9 @@ export function buildDataMatrixZpl({
         `^FO${layout.textX},0^AEB,${layout.legendHeight},${layout.legendCellWidth}^FB${heightDots},1,0,C${legendHex}^FD${legendData}^FS`
       );
     } else {
+      const alignment = layout.inline ? "L" : "C";
       lines.push(
-        `^FO0,${layout.textY}^AEN,${layout.legendHeight},${layout.legendCellWidth}^FB${widthDots},1,0,C${legendHex}^FD${legendData}^FS`
+        `^FO${layout.textX},${layout.textY}^AEN,${layout.legendHeight},${layout.legendCellWidth}^FB${layout.textFieldWidth},1,0,${alignment}${legendHex}^FD${legendData}^FS`
       );
     }
   }

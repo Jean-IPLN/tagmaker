@@ -48,6 +48,10 @@ const legendField = z
   .optional()
   .default("");
 
+const inlineField = z
+  .boolean({ error: "Le mode d'affichage est invalide" })
+  .optional();
+
 export const dataMatrixRequestSchema = z
   .object({
     content: contentField,
@@ -56,6 +60,7 @@ export const dataMatrixRequestSchema = z
     paperId: paperIdField,
     printerAddress: printerAddressField,
     rotated: rotatedField,
+    inline: inlineField,
   })
   .strict();
 

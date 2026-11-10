@@ -80,6 +80,77 @@ describe("buildDataMatrixZpl — orientation pivotée", () => {
   });
 });
 
+describe("buildDataMatrixZpl — affichage in-line", () => {
+  it("place la légende à droite du symbole sur une ligne", () => {
+    const zpl = buildDataMatrixZpl({
+      content: "REF-2026-A17",
+      legend: "Palette 42",
+      quantity: 1,
+      widthDots: 320,
+      heightDots: 200,
+      inline: true,
+    });
+
+    expect(zpl).toBe(
+      [
+        "^XA",
+        "^PW320^LL200",
+        "^LH0,0",
+        "^FO19,36^BXN,8,200,16,16,6,_,1",
+        "^FDREF-2026-A17^FS",
+        "^FO151,86^AEN,28,13^FB161,1,0,L^FDPalette 42^FS",
+        "^PQ1",
+        "^XZ",
+      ].join("\r\n")
+    );
+  });
+
+  it("produit le code seul quand la légende est vide", () => {
+    const normal = buildDataMatrixZpl({
+      content: "12345678",
+      widthDots: 320,
+      heightDots: 200,
+    });
+    const inline = buildDataMatrixZpl({
+      content: "12345678",
+      widthDots: 320,
+      heightDots: 200,
+      inline: true,
+    });
+
+    expect(inline).toBe(normal);
+    expect(inline).not.toContain("^AEN");
+  });
+
+  it("ignore l'in-line lorsque l'orientation pivotée est active", () => {
+    const zpl = buildDataMatrixZpl({
+      content: "1A2B",
+      legend: "Zone A",
+      widthDots: 320,
+      heightDots: 200,
+      rotated: true,
+      inline: true,
+    });
+
+    expect(zpl).toContain("^BXB");
+    expect(zpl).toContain("^AEB");
+    expect(zpl).not.toContain("^BXN");
+  });
+
+  it("échappe la légende in-line comme le mode normal", () => {
+    const zpl = buildDataMatrixZpl({
+      content: "ABC",
+      legend: "Lot_5^A~B",
+      widthDots: 800,
+      heightDots: 1200,
+      inline: true,
+    });
+
+    expect(zpl).toContain("^FB");
+    expect(zpl).toContain("^FH^FDLot_5F5_5EA_7EB^FS");
+  });
+});
+
 describe("buildDataMatrixZpl — échappements", () => {
   it("échappe le contenu Data Matrix et la légende séparément", () => {
     const zpl = buildDataMatrixZpl({

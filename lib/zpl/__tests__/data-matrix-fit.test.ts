@@ -47,6 +47,58 @@ describe("dataMatrixFits — cas nominaux", () => {
   );
 });
 
+describe("dataMatrixFits — affichage in-line", () => {
+  it.each([
+    { widthDots: 320, heightDots: 200, content: 1, legend: 18 },
+    { widthDots: 320, heightDots: 200, content: 12, legend: 17 },
+    { widthDots: 320, heightDots: 200, content: 200, legend: 13 },
+    { widthDots: 600, heightDots: 200, content: 1, legend: 37 },
+    { widthDots: 600, heightDots: 200, content: 12, legend: 36 },
+    { widthDots: 600, heightDots: 200, content: 200, legend: 31 },
+    { widthDots: 800, heightDots: 400, content: 1, legend: 50 },
+    { widthDots: 800, heightDots: 400, content: 12, legend: 49 },
+    { widthDots: 800, heightDots: 400, content: 200, legend: 45 },
+    { widthDots: 800, heightDots: 1200, content: 1, legend: 50 },
+    { widthDots: 800, heightDots: 1200, content: 12, legend: 49 },
+    { widthDots: 800, heightDots: 1200, content: 200, legend: 45 },
+  ])(
+    "accepte $legend caractères pour un contenu de $content sur $widthDots×$heightDots",
+    ({ widthDots, heightDots, content, legend }) => {
+      expect(
+        dataMatrixFits({
+          content: "A".repeat(content),
+          legend: "L".repeat(legend),
+          widthDots,
+          heightDots,
+          inline: true,
+        })
+      ).toBe(true);
+      expect(
+        dataMatrixFits({
+          content: "A".repeat(content),
+          legend: "L".repeat(legend + 1),
+          widthDots,
+          heightDots,
+          inline: true,
+        })
+      ).toBe(false);
+    }
+  );
+
+  it("ignore l'in-line lorsque l'orientation pivotée est active", () => {
+    expect(
+      dataMatrixFits({
+        content: "A",
+        legend: "L".repeat(13),
+        widthDots: 320,
+        heightDots: 200,
+        rotated: true,
+        inline: true,
+      })
+    ).toBe(false);
+  });
+});
+
 describe("dataMatrixFits — refus", () => {
   it("refuse un module inférieur à 2 points", () => {
     expect(
